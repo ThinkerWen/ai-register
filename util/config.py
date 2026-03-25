@@ -9,13 +9,20 @@ REGISTER_CONFIG_DEFAULTS = {
     "total_accounts": 3,
     "model_provider": "openai",
     "model_providers": {
+        "grok": {
+            "source_path": "",
+            "browser_proxy": "",
+            "api_endpoint": "",
+            "api_token": "",
+            "api_append": True,
+        },
         "openai": {
             "enable_oauth": True,
             "oauth_required": True,
             "oauth_issuer": "https://auth.openai.com",
             "oauth_client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
             "oauth_redirect_uri": "http://localhost:1455/auth/callback",
-        }
+        },
     },
     "mail_provider": "duckmail",
     "mail_providers": {
@@ -103,11 +110,15 @@ def load_register_config(config_path, logger=None):
     config = load_yaml_config(config_path, defaults=REGISTER_CONFIG_DEFAULTS)
     config = apply_env_overrides(config, REGISTER_ENV_KEY_MAPPING)
 
-    config["mail_provider"] = str(config.get("mail_provider", "duckmail")).strip().lower()
+    config["mail_provider"] = (
+        str(config.get("mail_provider", "duckmail")).strip().lower()
+    )
     if not isinstance(config.get("mail_providers"), dict):
         config["mail_providers"] = {}
 
-    config["model_provider"] = str(config.get("model_provider", "openai")).strip().lower()
+    config["model_provider"] = (
+        str(config.get("model_provider", "openai")).strip().lower()
+    )
     if not isinstance(config.get("model_providers"), dict):
         config["model_providers"] = {}
 
@@ -117,37 +128,46 @@ def load_register_config(config_path, logger=None):
         model_cfg = {}
 
     # 规范化 Model 配置: 结构为 model_providers.<provider>。
-    model_enable_oauth_raw = (
-        config.get("model_enable_oauth")
-        if config.get("model_enable_oauth") is not None
-        else model_cfg.get("enable_oauth", True)
-    )
-    model_oauth_required_raw = (
-        config.get("model_oauth_required")
-        if config.get("model_oauth_required") is not None
-        else model_cfg.get("oauth_required", True)
-    )
-    model_oauth_issuer = (
-        config.get("model_oauth_issuer")
-        or model_cfg.get("oauth_issuer")
-        or "https://auth.openai.com"
-    )
-    model_oauth_client_id = (
-        config.get("model_oauth_client_id")
-        or model_cfg.get("oauth_client_id")
-        or "app_EMoamEEZ73f0CkXaXp7hrann"
-    )
-    model_oauth_redirect_uri = (
-        config.get("model_oauth_redirect_uri")
-        or model_cfg.get("oauth_redirect_uri")
-        or "http://localhost:1455/auth/callback"
-    )
+    if model_name == "grok":
+        model_cfg["source_path"] = str(model_cfg.get("source_path") or "").strip()
+        model_cfg["browser_proxy"] = str(
+            model_cfg.get("browser_proxy") or config.get("proxy") or ""
+        ).strip()
+        model_cfg["api_endpoint"] = str(model_cfg.get("api_endpoint") or "").strip()
+        model_cfg["api_token"] = str(model_cfg.get("api_token") or "").strip()
+        model_cfg["api_append"] = parse_bool(model_cfg.get("api_append", True), True)
+    else:
+        model_enable_oauth_raw = (
+            config.get("model_enable_oauth")
+            if config.get("model_enable_oauth") is not None
+            else model_cfg.get("enable_oauth", True)
+        )
+        model_oauth_required_raw = (
+            config.get("model_oauth_required")
+            if config.get("model_oauth_required") is not None
+            else model_cfg.get("oauth_required", True)
+        )
+        model_oauth_issuer = (
+            config.get("model_oauth_issuer")
+            or model_cfg.get("oauth_issuer")
+            or "https://auth.openai.com"
+        )
+        model_oauth_client_id = (
+            config.get("model_oauth_client_id")
+            or model_cfg.get("oauth_client_id")
+            or "app_EMoamEEZ73f0CkXaXp7hrann"
+        )
+        model_oauth_redirect_uri = (
+            config.get("model_oauth_redirect_uri")
+            or model_cfg.get("oauth_redirect_uri")
+            or "http://localhost:1455/auth/callback"
+        )
 
-    model_cfg["enable_oauth"] = parse_bool(model_enable_oauth_raw, True)
-    model_cfg["oauth_required"] = parse_bool(model_oauth_required_raw, True)
-    model_cfg["oauth_issuer"] = str(model_oauth_issuer).strip()
-    model_cfg["oauth_client_id"] = str(model_oauth_client_id).strip()
-    model_cfg["oauth_redirect_uri"] = str(model_oauth_redirect_uri).strip()
+        model_cfg["enable_oauth"] = parse_bool(model_enable_oauth_raw, True)
+        model_cfg["oauth_required"] = parse_bool(model_oauth_required_raw, True)
+        model_cfg["oauth_issuer"] = str(model_oauth_issuer).strip()
+        model_cfg["oauth_client_id"] = str(model_oauth_client_id).strip()
+        model_cfg["oauth_redirect_uri"] = str(model_oauth_redirect_uri).strip()
     config["model_providers"][model_name] = model_cfg
 
     # 规范化 CPA 配置: 结构为 cpa.enable / cpa.api_url / cpa.token。
@@ -160,16 +180,8 @@ def load_register_config(config_path, logger=None):
         if config.get("cpa_enable") is not None
         else cpa_cfg.get("enable", False)
     )
-    cpa_api_url = (
-        config.get("cpa_api_url")
-        or cpa_cfg.get("api_url")
-        or ""
-    )
-    cpa_token = (
-        config.get("cpa_token")
-        or cpa_cfg.get("token")
-        or ""
-    )
+    cpa_api_url = config.get("cpa_api_url") or cpa_cfg.get("api_url") or ""
+    cpa_token = config.get("cpa_token") or cpa_cfg.get("token") or ""
     config["cpa"] = {
         "enable": parse_bool(cpa_enable_raw, False),
         "api_url": str(cpa_api_url).strip(),

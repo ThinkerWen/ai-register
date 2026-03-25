@@ -9,6 +9,12 @@ token_dir: "~/.ai-register/token_dir"
 
 model_provider: "openai"  # 可选，与 model_providers 一致
 model_providers:
+  grok:
+    source_path: ""
+    browser_proxy: "http://127.0.0.1:7890"
+    api_endpoint: ""
+    api_token: ""
+    api_append: true
   openai:
     # 一般不修改
     enable_oauth: true

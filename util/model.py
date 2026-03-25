@@ -1,8 +1,10 @@
-from register.providers.base import ModelProviderError
-from register.providers.openai import OpenAIModelProvider
+from register.base import ModelProviderError
+from register.grok.grok import GrokModelProvider
+from register.openai.openai import OpenAIModelProvider
 
 
 _PROVIDER_REGISTRY = {
+    "grok": GrokModelProvider,
     "openai": OpenAIModelProvider,
 }
 
@@ -32,7 +34,9 @@ def create_model_provider(config):
     provider_cls = _PROVIDER_REGISTRY.get(provider_name)
     if not provider_cls:
         available = ", ".join(sorted(_PROVIDER_REGISTRY.keys()))
-        raise ModelProviderError(f"不支持的 model_provider: {provider_name} (可选: {available})")
+        raise ModelProviderError(
+            f"不支持的 model_provider: {provider_name} (可选: {available})"
+        )
 
     provider_cfg = _resolve_provider_settings(config, provider_name)
     if provider_name == "openai":
@@ -42,6 +46,15 @@ def create_model_provider(config):
             oauth_issuer=provider_cfg.get("oauth_issuer"),
             oauth_client_id=provider_cfg.get("oauth_client_id"),
             oauth_redirect_uri=provider_cfg.get("oauth_redirect_uri"),
+        )
+
+    if provider_name == "grok":
+        return provider_cls(
+            source_path=provider_cfg.get("source_path"),
+            browser_proxy=provider_cfg.get("browser_proxy"),
+            api_endpoint=provider_cfg.get("api_endpoint"),
+            api_token=provider_cfg.get("api_token"),
+            api_append=provider_cfg.get("api_append", True),
         )
 
     raise ModelProviderError(f"provider 初始化未实现: {provider_name}")

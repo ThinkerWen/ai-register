@@ -1,4 +1,3 @@
-from register import openai
 from util import config as config_utils
 from util import cpa as cpa_utils
 from util import get_logger, setup_logger
@@ -34,7 +33,12 @@ def main():
     logger.info(f"模型 provider: {model_info['name']}")
     logger.info(f"邮箱 provider: {mail_info['name']} {mail_info['api_base']}")
 
-    openai.run_batch()
+    provider = model_utils.create_model_provider(config)
+    provider.run_batch(
+        total_accounts=config.get("total_accounts"),
+        max_workers=config.get("concurrency"),
+        proxy=config.get("proxy"),
+    )
 
 
 if __name__ == "__main__":

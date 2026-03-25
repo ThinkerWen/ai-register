@@ -2,13 +2,13 @@
 
 中文 | [English](README_en.md)
 
-轻量的批量注册脚本工具（当前默认流程为 OpenAI），支持并发执行、临时邮箱验证码读取，以及可选的 CPA 上传。
+轻量的批量注册脚本工具，支持 OpenAI 与 Grok 两套注册流程，以及临时邮箱验证码读取和可选的 CPA 上传。
 
 ## 功能特性
 
 - 并发批量执行
 - 可切换邮箱 provider
-- 支持 OAuth 相关参数配置
+- 支持 OpenAI OAuth 与 Grok provider 切换
 - 支持 CPA 上传
 
 ## 快速开始
@@ -43,6 +43,8 @@ cp config.example.yaml config.yaml
 
 ### 3) 启动
 
+入口统一使用 `main.py`。
+
 先做配置检查:
 
 ```bash
@@ -52,8 +54,10 @@ python main.py
 执行批量流程:
 
 ```bash
-python -m register.openai
+python main.py
 ```
+
+通过 `config.yaml` 里的 `model_provider` 选择执行 `openai` 或 `grok`。
 
 ## 配置说明
 
@@ -63,8 +67,9 @@ python -m register.openai
 | `total_accounts` | 目标注册账号总数                             |
 | `proxy` | 全局代理，留空表示不使用                         |
 | `token_dir` | token 输出目录                           |
-| `model_provider` | 模型 provider 名称                       |
+| `model_provider` | 模型 provider 名称（`openai` / `grok`） |
 | `model_providers.openai.*` | OpenAI OAuth 配置                      |
+| `model_providers.grok.*` | Grok 外部流程桥接配置                     |
 | `mail_provider` | 邮箱 provider（`duckmail` / `tempmail`） |
 | `mail_providers.duckmail.*` | DuckMail 配置                          |
 | `mail_providers.tempmail.*` | TempMail 配置                          |
@@ -93,3 +98,9 @@ python -m register.openai
 - 不要提交真实 `config.yaml`（含密钥）到仓库。
 - 建议只提交脱敏的 [config.example.yaml](config.example.yaml)。
 - 当 CPA 地址为本地地址（如 `localhost`）时，上传请求会自动绕过代理。
+
+## Grok 说明
+
+- `model_provider: grok` 时，会桥接执行 `model_providers.grok.source_path` 指向的 Grok 注册脚本。
+- 当前 Grok 流程仅支持 `mail_provider: duckmail`。
+- Grok 输出的 `sso` 文件会写入 `token_dir/grok/`。

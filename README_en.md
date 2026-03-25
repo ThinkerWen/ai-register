@@ -2,13 +2,13 @@
 
 [中文](README.md) | English
 
-A lightweight batch registration tool (currently using the OpenAI flow by default), with concurrent execution, temporary mailbox OTP retrieval, and optional CPA upload.
+A lightweight batch registration tool with OpenAI and Grok flows, temporary mailbox OTP retrieval, and optional CPA upload.
 
 ## Features
 
 - Concurrent batch execution
 - Switchable mail provider
-- OAuth-related configuration
+- OpenAI OAuth and Grok provider switching
 - CPA upload support
 
 ## Quick Start
@@ -43,6 +43,8 @@ Then fill in sensitive fields:
 
 ### 3) Run
 
+The unified entry point is `main.py`.
+
 Check configuration first:
 
 ```bash
@@ -52,8 +54,10 @@ python main.py
 Run batch flow:
 
 ```bash
-python -m register.openai
+python main.py
 ```
+
+The actual flow is selected by `model_provider` in `config.yaml`.
 
 ## Configuration Reference
 
@@ -63,8 +67,9 @@ python -m register.openai
 | `total_accounts` | Total number of target accounts |
 | `proxy` | Global proxy; leave empty to disable |
 | `token_dir` | Token output directory |
-| `model_provider` | Model provider name |
+| `model_provider` | Model provider name (`openai` / `grok`) |
 | `model_providers.openai.*` | OpenAI OAuth configuration |
+| `model_providers.grok.*` | Grok external flow bridge settings |
 | `mail_provider` | Mail provider (`duckmail` / `tempmail`) |
 | `mail_providers.duckmail.*` | DuckMail settings |
 | `mail_providers.tempmail.*` | TempMail settings |
@@ -93,3 +98,9 @@ Supports overriding part of the config via environment variables. Common ones in
 - Do not commit real `config.yaml` containing secrets.
 - Commit only sanitized example files such as [config.example.yaml](config.example.yaml).
 - If CPA endpoint points to local addresses (`localhost`, `127.0.0.1`), proxy is bypassed automatically.
+
+## Grok Notes
+
+- With `model_provider: grok`, the project bridges to the external Grok registration flow referenced by `model_providers.grok.source_path`.
+- The Grok flow currently supports only `mail_provider: duckmail`.
+- Grok `sso` output is written to `token_dir/grok/`.
