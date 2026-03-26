@@ -2,7 +2,7 @@
 
 中文 | [English](README_en.md)
 
-轻量的批量注册脚本工具，支持 OpenAI 与 Grok 两套注册流程，以及临时邮箱验证码读取和可选的 CPA 上传。
+轻量的批量注册脚本工具，支持 OpenAI 与 Grok 两套注册流程，以及临时邮箱验证码读取和可选的 CPA/Grok2API 上传。
 
 ## 功能特性
 
@@ -10,7 +10,7 @@
 - 可切换邮箱 provider
 - 支持 OpenAI OAuth 与 Grok provider 切换
 - 支持 [CPA](https://github.com/router-for-me/CLIProxyAPI) 上传
-- 支持 [grok2ai](https://github.com/chenyme/grok2api) 上传
+- 支持 [grok2api](https://github.com/chenyme/grok2api) 上传
 
 ## 快速开始
 
@@ -68,18 +68,18 @@ python main.py
 | `total_accounts` | 目标注册账号总数                             |
 | `proxy` | 全局代理，留空表示不使用                         |
 | `token_dir` | token 输出目录                           |
-| `model_provider` | 模型 provider 名称（`openai` / `grok`） |
+| `model_provider` | 模型 provider 名称（`openai` / `grok`）    |
 | `model_providers.openai.*` | OpenAI OAuth 配置                      |
-| `model_providers.grok.browser_proxy` | Grok 浏览器代理配置                    |
+| `model_providers.grok.browser_proxy` | Grok 浏览器代理配置                         |
 | `mail_provider` | 邮箱 provider（`duckmail` / `tempmail`） |
 | `mail_providers.duckmail.*` | DuckMail 配置                          |
 | `mail_providers.tempmail.*` | TempMail 配置                          |
 | `cpa.enable` | 是否启用 CPA 上传                          |
 | `cpa.api_url` | CPA 上传接口地址                           |
 | `cpa.token` | CPA 登录 token                         |
-| `g2a.enable` | 是否启用 Grok2AI 上传                     |
-| `g2a.api_url` | Grok2AI 上传接口地址                      |
-| `g2a.token` | Grok2AI 登录 token                      |
+| `g2a.enable` | 是否启用 Grok2API 上传                     |
+| `g2a.api_url` | Grok2API 上传接口地址                      |
+| `g2a.token` | Grok2API 登录 token                    |
 
 示例配置请参考 [config.example.yaml](config.example.yaml)。
 

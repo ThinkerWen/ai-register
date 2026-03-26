@@ -2,7 +2,7 @@
 
 [中文](README.md) | English
 
-A lightweight batch registration tool with OpenAI and Grok flows, temporary mailbox OTP retrieval, and optional CPA/Grok2AI upload.
+A lightweight batch registration tool with OpenAI and Grok flows, temporary mailbox OTP retrieval, and optional CPA/Grok2API upload.
 
 ## Features
 
@@ -10,7 +10,7 @@ A lightweight batch registration tool with OpenAI and Grok flows, temporary mail
 - Switchable mail provider
 - OpenAI OAuth and Grok provider switching
 - [CPA](https://github.com/router-for-me/CLIProxyAPI) upload support
-- [grok2ai](https://github.com/chenyme/grok2api) upload support
+- [grok2api](https://github.com/chenyme/grok2api) upload support
 
 ## Quick Start
 
@@ -41,7 +41,7 @@ Then fill in sensitive fields:
 - `mail_providers.duckmail.bearer`
 - `mail_providers.tempmail.api_key`
 - `cpa.token` (only required when CPA upload is enabled)
-- `g2a.token` (only required when Grok2AI upload is enabled)
+- `g2a.token` (only required when Grok2API upload is enabled)
 
 ### 3) Run
 
@@ -63,24 +63,24 @@ The actual flow is selected by `model_provider` in `config.yaml`.
 
 ## Configuration Reference
 
-| Field | Description |
-| --- | --- |
-| `concurrency` | Number of concurrent workers |
-| `total_accounts` | Total number of target accounts |
-| `proxy` | Global proxy; leave empty to disable |
-| `token_dir` | Token output directory |
+| Field | Description                             |
+| --- |-----------------------------------------|
+| `concurrency` | Number of concurrent workers            |
+| `total_accounts` | Total number of target accounts         |
+| `proxy` | Global proxy; leave empty to disable    |
+| `token_dir` | Token output directory                  |
 | `model_provider` | Model provider name (`openai` / `grok`) |
-| `model_providers.openai.*` | OpenAI OAuth configuration |
-| `model_providers.grok.browser_proxy` | Grok browser proxy setting |
+| `model_providers.openai.*` | OpenAI OAuth configuration              |
+| `model_providers.grok.browser_proxy` | Grok browser proxy setting              |
 | `mail_provider` | Mail provider (`duckmail` / `tempmail`) |
-| `mail_providers.duckmail.*` | DuckMail settings |
-| `mail_providers.tempmail.*` | TempMail settings |
-| `cpa.enable` | Enable CPA upload |
-| `cpa.api_url` | CPA upload endpoint |
-| `cpa.token` | CPA login token |
-| `g2a.enable` | Enable Grok2AI upload |
-| `g2a.api_url` | Grok2AI upload endpoint |
-| `g2a.token` | Grok2AI login token |
+| `mail_providers.duckmail.*` | DuckMail settings                       |
+| `mail_providers.tempmail.*` | TempMail settings                       |
+| `cpa.enable` | Enable CPA upload                       |
+| `cpa.api_url` | CPA upload endpoint                     |
+| `cpa.token` | CPA login token                         |
+| `g2a.enable` | Enable Grok2API upload                  |
+| `g2a.api_url` | Grok2API upload endpoint                |
+| `g2a.token` | Grok2API login token                    |
 
 See [config.example.yaml](config.example.yaml) for a complete example.
 

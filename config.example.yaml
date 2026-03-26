@@ -39,8 +39,8 @@ cpa:
   token: "<YOUR_CPA_TOKEN>"
 
 g2a:
-  # 是否上传到 grok2ai 见：https://github.com/chenyme/grok2api
+  # 是否上传到 grok2api 见：https://github.com/chenyme/grok2api
   enable: false
-  api_url: ""
-  token: ""
+  api_url: "http://localhost:8000/v1/admin/tokens"
+  token: "grok2api"
   append: true
