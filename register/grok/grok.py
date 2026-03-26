@@ -7,7 +7,9 @@ import shutil
 import socket
 import sys
 import tempfile
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from glob import glob
 from typing import Optional
 
@@ -23,10 +25,52 @@ from util import mail as mail_utils
 setup_logger()
 logger = get_logger("grok")
 
-browser = None
-page = None
 _virtual_display = None
-_chrome_temp_dir = ""
+_thread_state = threading.local()
+_file_lock = threading.Lock()
+
+
+class _ThreadLocalObjectProxy:
+    def __init__(self, attr_name: str):
+        self.attr_name = attr_name
+
+    def _get_target(self):
+        target = getattr(_thread_state, self.attr_name, None)
+        if target is None:
+            raise RuntimeError(f"当前线程未初始化 {self.attr_name}")
+        return target
+
+    def __getattr__(self, item):
+        return getattr(self._get_target(), item)
+
+
+browser = _ThreadLocalObjectProxy("browser")
+page = _ThreadLocalObjectProxy("page")
+
+
+def _get_browser():
+    return getattr(_thread_state, "browser", None)
+
+
+def _set_browser(value):
+    _thread_state.browser = value
+
+
+def _get_page():
+    return getattr(_thread_state, "page", None)
+
+
+def _set_page(value):
+    _thread_state.page = value
+
+
+def _get_chrome_temp_dir() -> str:
+    return str(getattr(_thread_state, "chrome_temp_dir", "") or "")
+
+
+def _set_chrome_temp_dir(value: str):
+    _thread_state.chrome_temp_dir = value
+
 
 SIGNUP_URL = "https://accounts.x.ai/sign-up?redirect=grok-com"
 EXTENSION_PATH = os.path.abspath(
@@ -74,7 +118,6 @@ class GrokModelProvider(ModelProvider):
         max_workers: Optional[int] = None,
         proxy: Optional[str] = None,
     ):
-        _ = max_workers
         config = config_utils.get_register_config(logger=logger)
         mail_ok, mail_err = mail_utils.validate_mail_provider_config(config)
         if not mail_ok:
@@ -84,16 +127,28 @@ class GrokModelProvider(ModelProvider):
             total_accounts = int(config.get("total_accounts") or 0)
         else:
             total_accounts = int(total_accounts)
+        if max_workers is None:
+            max_workers = int(config.get("concurrency") or 1)
+        else:
+            max_workers = int(max_workers)
         if proxy is None:
             proxy = str(config.get("proxy") or "")
 
         output_path = _default_sso_file(config)
-        logger.info("开始执行内置 Grok 注册流程: total={}", total_accounts)
+        logger.info(
+            "开始执行内置 Grok 注册流程: total={} | workers={}",
+            total_accounts,
+            max_workers,
+        )
         logger.info("SSO 输出文件: {}", output_path)
         g2a_ok, g2a_msg = g2a_utils.validate_g2a_config(config)
         if not g2a_ok:
             logger.warning("G2A 配置不完整: {}", g2a_msg)
-        _run_loop(total_accounts=total_accounts, output_path=output_path)
+        _run_loop(
+            total_accounts=total_accounts,
+            output_path=output_path,
+            max_workers=max_workers,
+        )
 
 
 def _get_config():
@@ -251,66 +306,73 @@ def _ensure_virtual_display():
 
 
 def start_browser():
-    global browser, page, _chrome_temp_dir
     _ensure_virtual_display()
     co = _create_chromium_options()
-    _chrome_temp_dir = tempfile.mkdtemp(prefix="chrome_run_")
-    co.set_user_data_path(_chrome_temp_dir)
-    browser = Chromium(co)
-    tabs = browser.get_tabs()
-    page = tabs[-1] if tabs else browser.new_tab()
-    return browser, page
+    chrome_temp_dir = tempfile.mkdtemp(prefix="chrome_run_")
+    co.set_user_data_path(chrome_temp_dir)
+    browser_obj = Chromium(co)
+    tabs = browser_obj.get_tabs()
+    page_obj = tabs[-1] if tabs else browser_obj.new_tab()
+    _set_chrome_temp_dir(chrome_temp_dir)
+    _set_browser(browser_obj)
+    _set_page(page_obj)
+    return browser_obj, page_obj
 
 
 def stop_browser():
-    global browser, page, _chrome_temp_dir
-    if browser is not None:
+    browser_obj = _get_browser()
+    chrome_temp_dir = _get_chrome_temp_dir()
+    if browser_obj is not None:
         try:
-            browser.quit()
+            browser_obj.quit()
         except Exception:
             pass
-    browser = None
-    page = None
-    if _chrome_temp_dir and os.path.isdir(_chrome_temp_dir):
-        shutil.rmtree(_chrome_temp_dir, ignore_errors=True)
-    _chrome_temp_dir = ""
+    _set_browser(None)
+    _set_page(None)
+    if chrome_temp_dir and os.path.isdir(chrome_temp_dir):
+        shutil.rmtree(chrome_temp_dir, ignore_errors=True)
+    _set_chrome_temp_dir("")
 
 
 def restart_browser():
-    global browser, page
-    if browser is None:
+    browser_obj = _get_browser()
+    if browser_obj is None:
         start_browser()
         return
     try:
-        tabs = browser.get_tabs()
-        page = tabs[-1] if tabs else browser.new_tab()
-        page.run_js("window.localStorage.clear(); window.sessionStorage.clear();")
-        page.clear_cache(session_storage=True, cookies=True)
+        tabs = browser_obj.get_tabs()
+        page_obj = tabs[-1] if tabs else browser_obj.new_tab()
+        _set_page(page_obj)
+        page_obj.run_js("window.localStorage.clear(); window.sessionStorage.clear();")
+        page_obj.clear_cache(session_storage=True, cookies=True)
     except Exception:
         stop_browser()
         start_browser()
 
 
 def refresh_active_page():
-    global browser, page
-    if browser is None:
+    browser_obj = _get_browser()
+    if browser_obj is None:
         start_browser()
+        browser_obj = _get_browser()
     try:
-        tabs = browser.get_tabs()
-        page = tabs[-1] if tabs else browser.new_tab()
+        tabs = browser_obj.get_tabs()
+        page_obj = tabs[-1] if tabs else browser_obj.new_tab()
+        _set_page(page_obj)
     except Exception:
         restart_browser()
-    return page
+        page_obj = _get_page()
+    return page_obj
 
 
 def open_signup_page():
-    global page
     refresh_active_page()
     try:
         page.get(SIGNUP_URL)
     except Exception:
         refresh_active_page()
-        page = browser.new_tab(SIGNUP_URL)
+        page_obj = _get_browser().new_tab(SIGNUP_URL)
+        _set_page(page_obj)
     click_email_signup_button()
 
 
@@ -925,8 +987,9 @@ def append_sso_to_txt(sso_value, output_path):
     if not normalized:
         raise Exception("待写入的 sso 为空")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "a", encoding="utf-8") as file:
-        file.write(normalized + "\n")
+    with _file_lock:
+        with open(output_path, "a", encoding="utf-8") as file:
+            file.write(normalized + "\n")
     logger.info("已追加写入 sso 到文件: {}", output_path)
 
 
@@ -955,32 +1018,49 @@ def load_run_count():
     return int(_get_config().get("total_accounts") or 1)
 
 
-def _run_loop(total_accounts, output_path, extract_numbers=False):
+def _run_single_account(task_index, output_path, extract_numbers=False):
+    logger.info("开始执行注册流程 | task={}", task_index)
+    start_browser()
+    try:
+        return run_single_registration(output_path, extract_numbers=extract_numbers)
+    finally:
+        stop_browser()
+
+
+def _run_loop(total_accounts, output_path, extract_numbers=False, max_workers=None):
     ensure_stable_python_runtime()
     warn_runtime_compatibility()
-    current_round = 0
     collected_sso = []
+    resolved_total_accounts = int(total_accounts or 0)
+    if resolved_total_accounts <= 0:
+        raise ValueError("Grok provider 目前要求 total_accounts 大于 0")
+    resolved_max_workers = int(max_workers or _get_config().get("concurrency") or 1)
+    actual_workers = max(1, min(resolved_max_workers, resolved_total_accounts))
+    logger.info(
+        "Grok 并发执行开始 | total_accounts={} | workers={}",
+        resolved_total_accounts,
+        actual_workers,
+    )
     try:
-        start_browser()
-        while True:
-            if total_accounts > 0 and current_round >= total_accounts:
-                break
-            current_round += 1
-            logger.info("开始执行注册流程")
-            try:
-                result = run_single_registration(
-                    output_path, extract_numbers=extract_numbers
+        with ThreadPoolExecutor(max_workers=actual_workers) as executor:
+            futures = [
+                executor.submit(
+                    _run_single_account,
+                    task_index,
+                    output_path,
+                    extract_numbers,
                 )
-                collected_sso.append(result["sso"])
-            except KeyboardInterrupt:
-                logger.info("收到中断信号，停止执行。")
-                break
-            except Exception as error:
-                logger.error("注册失败: {}", error)
-            finally:
-                restart_browser()
-            if total_accounts == 0 or current_round < total_accounts:
-                time.sleep(2)
+                for task_index in range(1, resolved_total_accounts + 1)
+            ]
+            for future in as_completed(futures):
+                try:
+                    result = future.result()
+                    collected_sso.append(result["sso"])
+                except KeyboardInterrupt:
+                    logger.info("收到中断信号，停止执行。")
+                    raise
+                except Exception as error:
+                    logger.error("注册失败: {}", error)
     finally:
         if collected_sso and g2a_utils.should_upload(_get_config()):
             logger.info("准备推送 {} 个 token 到 API...", len(collected_sso))
@@ -1015,6 +1095,7 @@ def main():
         total_accounts=args.count,
         output_path=args.output,
         extract_numbers=args.extract_numbers,
+        max_workers=_get_config().get("concurrency"),
     )
 
 
