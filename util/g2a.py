@@ -12,16 +12,17 @@ def _parse_g2a_config(config):
     api_url = str(g2a_cfg.get("api_url") or "").strip()
     token = str(g2a_cfg.get("token") or "").strip()
     append = bool(g2a_cfg.get("append", True))
-    return enabled, api_url, token, append
+    use_proxy = bool(g2a_cfg.get("use_proxy", False))
+    return enabled, api_url, token, append, use_proxy
 
 
 def should_upload(config):
-    enabled, api_url, token, _ = _parse_g2a_config(config)
+    enabled, api_url, token, _, _ = _parse_g2a_config(config)
     return enabled and bool(api_url) and bool(token)
 
 
 def validate_g2a_config(config):
-    enabled, api_url, token, _ = _parse_g2a_config(config)
+    enabled, api_url, token, _, _ = _parse_g2a_config(config)
     if not enabled:
         return True, "g2a disabled"
     if not api_url:
@@ -32,7 +33,7 @@ def validate_g2a_config(config):
 
 
 def upload_sso_tokens(tokens, config, proxy=None, logger=None):
-    enabled, api_url, token, append_mode = _parse_g2a_config(config)
+    enabled, api_url, token, append_mode, use_proxy_pref = _parse_g2a_config(config)
     if not enabled:
         return False
 
@@ -46,10 +47,12 @@ def upload_sso_tokens(tokens, config, proxy=None, logger=None):
 
     session = requests.Session()
     host = (urlparse(api_url).hostname or "").lower()
-    use_proxy = bool(proxy) and host not in {"localhost", "127.0.0.1", "::1"}
-    if use_proxy:
+    final_use_proxy = bool(proxy) and (bool(use_proxy_pref) or host not in {"localhost", "127.0.0.1", "::1"})
+    if final_use_proxy:
         resolved_proxy = str(proxy)
         session.proxies = {"http": resolved_proxy, "https": resolved_proxy}
+    elif proxy and logger:
+        logger(f"[G2A] 检测到本地地址 {host}，上传请求已绕过代理")
 
     if append_mode:
         try:

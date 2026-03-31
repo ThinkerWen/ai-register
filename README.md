@@ -80,6 +80,8 @@ python main.py
 | `g2a.enable` | 是否启用 Grok2API 上传                     |
 | `g2a.api_url` | Grok2API 上传接口地址                      |
 | `g2a.token` | Grok2API 登录 token                    |
+| `cpa.use_proxy` | 上传 CPA 时是否强制使用全局 `proxy`（默认 false；为 true 时使用 `proxy`，否则本地地址可能绕过代理） |
+| `g2a.use_proxy` | 上传 Grok2API 时是否强制使用全局 `proxy`（默认 false；为 true 时使用 `proxy`，否则本地地址可能绕过代理） |
 
 示例配置请参考 [config.example.yaml](config.example.yaml)。
 
@@ -96,3 +98,5 @@ python main.py
 - `CPA_ENABLE`
 - `CPA_API_URL`
 - `CPA_TOKEN`
+ - `CPA_USE_PROXY`
+ - `G2A_USE_PROXY`

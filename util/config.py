@@ -33,12 +33,14 @@ REGISTER_CONFIG_DEFAULTS = {
         "enable": False,
         "api_url": "",
         "token": "",
+        "use_proxy": False,
     },
     "g2a": {
         "enable": False,
         "api_url": "",
         "token": "",
         "append": True,
+        "use_proxy": False,
     },
 }
 
@@ -59,9 +61,11 @@ REGISTER_ENV_KEY_MAPPING = {
     "cpa_enable": "CPA_ENABLE",
     "cpa_api_url": "CPA_API_URL",
     "cpa_token": "CPA_TOKEN",
+    "cpa_use_proxy": "CPA_USE_PROXY",
     "g2a_enable": "G2A_ENABLE",
     "g2a_api_url": "G2A_API_URL",
     "g2a_token": "G2A_TOKEN",
+    "g2a_use_proxy": "G2A_USE_PROXY",
 }
 
 
@@ -186,10 +190,16 @@ def load_register_config(config_path, logger=None):
     )
     cpa_api_url = config.get("cpa_api_url") or cpa_cfg.get("api_url") or ""
     cpa_token = config.get("cpa_token") or cpa_cfg.get("token") or ""
+    cpa_use_proxy_raw = (
+        config.get("cpa_use_proxy")
+        if config.get("cpa_use_proxy") is not None
+        else cpa_cfg.get("use_proxy", False)
+    )
     config["cpa"] = {
         "enable": parse_bool(cpa_enable_raw, False),
         "api_url": str(cpa_api_url).strip(),
         "token": str(cpa_token).strip(),
+        "use_proxy": parse_bool(cpa_use_proxy_raw, False),
     }
 
     g2a_cfg = config.get("g2a")
@@ -204,11 +214,17 @@ def load_register_config(config_path, logger=None):
     g2a_api_url = config.get("g2a_api_url") or g2a_cfg.get("api_url") or ""
     g2a_token = config.get("g2a_token") or g2a_cfg.get("token") or ""
     g2a_append_raw = g2a_cfg.get("append", True)
+    g2a_use_proxy_raw = (
+        config.get("g2a_use_proxy")
+        if config.get("g2a_use_proxy") is not None
+        else g2a_cfg.get("use_proxy", False)
+    )
     config["g2a"] = {
         "enable": parse_bool(g2a_enable_raw, False),
         "api_url": str(g2a_api_url).strip(),
         "token": str(g2a_token).strip(),
         "append": parse_bool(g2a_append_raw, True),
+        "use_proxy": parse_bool(g2a_use_proxy_raw, False),
     }
 
     # 规范化 Token 存储目录。

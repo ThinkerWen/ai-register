@@ -37,6 +37,7 @@ cpa:
   enable: false
   api_url: "http://localhost:8317/v0/management/auth-files"
   token: "<YOUR_CPA_TOKEN>"
+  use_proxy: false  # 是否在上传时强制使用全局 `proxy` 配置
 
 g2a:
   # 是否上传到 grok2api 见：https://github.com/chenyme/grok2api
@@ -44,3 +45,4 @@ g2a:
   api_url: "http://localhost:8000/v1/admin/tokens"
   token: "grok2api"
   append: true
+  use_proxy: false  # 是否在上传时强制使用全局 `proxy` 配置

@@ -81,6 +81,8 @@ The actual flow is selected by `model_provider` in `config.yaml`.
 | `g2a.enable` | Enable Grok2API upload                  |
 | `g2a.api_url` | Grok2API upload endpoint                |
 | `g2a.token` | Grok2API login token                    |
+| `cpa.use_proxy` | Whether to force using the global `proxy` for CPA uploads (default: false; when true uploads use `proxy`, otherwise local addresses may bypass proxy) |
+| `g2a.use_proxy` | Whether to force using the global `proxy` for Grok2API uploads (default: false; when true uploads use `proxy`, otherwise local addresses may bypass proxy) |
 
 See [config.example.yaml](config.example.yaml) for a complete example.
 
@@ -97,3 +99,5 @@ Supports overriding part of the config via environment variables. Common ones in
 - `CPA_ENABLE`
 - `CPA_API_URL`
 - `CPA_TOKEN`
+ - `CPA_USE_PROXY`
+ - `G2A_USE_PROXY`
