@@ -43,7 +43,7 @@ g2a:
   # 是否上传到 grok2api（新版 3.0 go 版），见：https://github.com/chenyme/grok2api
   enable: false
   # 远端 grok2api 基础地址，例如 https://your-grok2api.com
-  remote_base: "https://your-grok2api.com"
+  api_url: "https://your-grok2api.com"
   # 管理员账号密码
   admin_username: "admin"
   admin_password: "your-password"

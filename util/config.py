@@ -37,7 +37,7 @@ REGISTER_CONFIG_DEFAULTS = {
     },
     "g2a": {
         "enable": False,
-        "remote_base": "",
+        "api_url": "",
         "admin_username": "",
         "admin_password": "",
         "use_proxy": False,
@@ -63,7 +63,7 @@ REGISTER_ENV_KEY_MAPPING = {
     "cpa_token": "CPA_TOKEN",
     "cpa_use_proxy": "CPA_USE_PROXY",
     "g2a_enable": "G2A_ENABLE",
-    "g2a_remote_base": "G2A_REMOTE_BASE",
+    "g2a_api_url": "G2A_API_URL",
     "g2a_admin_username": "G2A_ADMIN_USERNAME",
     "g2a_admin_password": "G2A_ADMIN_PASSWORD",
     "g2a_use_proxy": "G2A_USE_PROXY",
@@ -212,8 +212,8 @@ def load_register_config(config_path, logger=None):
         if config.get("g2a_enable") is not None
         else g2a_cfg.get("enable", False)
     )
-    g2a_remote_base = (
-        config.get("g2a_remote_base") or g2a_cfg.get("remote_base") or ""
+    g2a_api_url = (
+        config.get("g2a_api_url") or g2a_cfg.get("api_url") or ""
     )
     g2a_admin_username = (
         config.get("g2a_admin_username") or g2a_cfg.get("admin_username") or ""
@@ -228,7 +228,7 @@ def load_register_config(config_path, logger=None):
     )
     config["g2a"] = {
         "enable": parse_bool(g2a_enable_raw, False),
-        "remote_base": str(g2a_remote_base).strip(),
+        "api_url": str(g2a_api_url).strip(),
         "admin_username": str(g2a_admin_username).strip(),
         "admin_password": str(g2a_admin_password),
         "use_proxy": parse_bool(g2a_use_proxy_raw, False),

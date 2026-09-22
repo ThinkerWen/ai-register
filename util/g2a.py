@@ -27,13 +27,13 @@ def _parse_g2a_config(config):
         g2a_cfg = {}
 
     enabled = bool(g2a_cfg.get("enable", False))
-    remote_base = str(g2a_cfg.get("remote_base") or "").strip()
+    api_url = str(g2a_cfg.get("api_url") or "").strip()
     admin_username = str(g2a_cfg.get("admin_username") or "").strip()
     admin_password = str(g2a_cfg.get("admin_password") or "")
     use_proxy = bool(g2a_cfg.get("use_proxy", False))
     return {
         "enabled": enabled,
-        "remote_base": remote_base,
+        "api_url": api_url,
         "admin_username": admin_username,
         "admin_password": admin_password,
         "use_proxy": use_proxy,
@@ -42,7 +42,7 @@ def _parse_g2a_config(config):
 
 def should_upload(config):
     cfg = _parse_g2a_config(config)
-    if not cfg["enabled"] or not cfg["remote_base"]:
+    if not cfg["enabled"] or not cfg["api_url"]:
         return False
     return bool(cfg["admin_username"]) and bool(cfg["admin_password"])
 
@@ -51,8 +51,8 @@ def validate_g2a_config(config):
     cfg = _parse_g2a_config(config)
     if not cfg["enabled"]:
         return True, "g2a disabled"
-    if not cfg["remote_base"]:
-        return False, "g2a.enable=true 但 g2a.remote_base 未配置"
+    if not cfg["api_url"]:
+        return False, "g2a.enable=true 但 g2a.api_url 未配置"
     if not cfg["admin_username"] or not cfg["admin_password"]:
         return False, "g2a.enable=true 但未配置 admin_username/admin_password"
     return True, "ok"
@@ -211,7 +211,7 @@ def _parse_go_import(response, secrets=()):
 
 
 def _upload_go_remote(tokens, cfg, proxies, logger=None):
-    api_base = _go_api_base(cfg["remote_base"])
+    api_base = _go_api_base(cfg["api_url"])
     endpoint = api_base + "/accounts/web/import"
     payload = "\n".join(tokens) + "\n"
     try:
