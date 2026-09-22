@@ -3,7 +3,6 @@ from threading import Lock
 
 from loguru import logger as _logger
 
-
 _config_lock = Lock()
 _configured = False
 

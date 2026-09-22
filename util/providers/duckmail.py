@@ -7,7 +7,6 @@ from requests.exceptions import ConnectionError, ProxyError, ReadTimeout, SSLErr
 
 from util.providers.base import MailProvider, MailProviderError
 
-
 _DUCKMAIL_TIMEOUT = 25
 _MAX_RETRIES_PER_ROUTE = 2
 
@@ -26,11 +25,13 @@ def default_generate_password(length=14):
 
 def create_duckmail_session(user_agent=None, proxy=None):
     session = requests.Session()
-    session.headers.update({
-        "User-Agent": user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    })
+    session.headers.update(
+        {
+            "User-Agent": user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+    )
     if proxy:
         session.proxies = {"http": proxy, "https": proxy}
     return session

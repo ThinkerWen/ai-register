@@ -12,3 +12,18 @@ dependencies = [
     "requests>=2.32.5",
     "tempmail-lol>=3.0.0",
 ]
+
+[tool.ruff]
+line-length = 140
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+# 注入的 JS 脚本字符串较长，拆分反而降低可读性
+"register/grok/grok.py" = ["E501"]

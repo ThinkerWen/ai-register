@@ -17,7 +17,7 @@ import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Optional, cast
-from urllib.parse import urlparse, parse_qs, urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from curl_cffi import requests as curl_requests
 
@@ -77,19 +77,9 @@ class OpenAIModelProvider(ModelProvider):
         proxy: Optional[str] = None,
     ):
         config = config_utils.get_register_config(logger=logger)
-        resolved_total_accounts = (
-            int(total_accounts)
-            if total_accounts is not None
-            else int(config.get("total_accounts") or 0)
-        )
-        resolved_max_workers = (
-            int(max_workers)
-            if max_workers is not None
-            else int(config.get("concurrency") or 1)
-        )
-        resolved_proxy = (
-            str(proxy) if proxy is not None else str(config.get("proxy") or "")
-        )
+        resolved_total_accounts = int(total_accounts) if total_accounts is not None else int(config.get("total_accounts") or 0)
+        resolved_max_workers = int(max_workers) if max_workers is not None else int(config.get("concurrency") or 1)
+        resolved_proxy = str(proxy) if proxy is not None else str(config.get("proxy") or "")
         return run_batch(
             total_accounts=resolved_total_accounts,
             max_workers=resolved_max_workers,
@@ -123,9 +113,7 @@ def _cfg(key):
     return _CONFIG[key]
 
 
-_MODEL_PROVIDER_INFO = {
-    "name": str((_CONFIG or {}).get("model_provider") or "openai").strip().lower()
-}
+_MODEL_PROVIDER_INFO = {"name": str((_CONFIG or {}).get("model_provider") or "openai").strip().lower()}
 try:
     _MODEL_PROVIDER = _create_openai_provider(_CONFIG)
     _model_ok, _model_err = True, "ok"
@@ -217,9 +205,7 @@ def _make_trace_headers():
 
 
 def _generate_pkce():
-    code_verifier = (
-        base64.urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode("ascii")
-    )
+    code_verifier = base64.urlsafe_b64encode(secrets.token_bytes(64)).rstrip(b"=").decode("ascii")
     digest = hashlib.sha256(code_verifier.encode("ascii")).digest()
     code_challenge = base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
     return code_verifier, code_challenge
@@ -234,9 +220,7 @@ class SentinelTokenGenerator:
     def __init__(self, device_id=None, user_agent=None):
         self.device_id = device_id or str(uuid.uuid4())
         self.user_agent = user_agent or (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/145.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
         )
         self.requirements_seed = str(random.random())
         self.sid = str(uuid.uuid4())
@@ -302,12 +286,8 @@ class SentinelTokenGenerator:
             "en-US,en",
             random.random(),
             nav_val,
-            random.choice(
-                ["location", "implementation", "URL", "documentURI", "compatMode"]
-            ),
-            random.choice(
-                ["Object", "Function", "Array", "Number", "parseFloat", "undefined"]
-            ),
+            random.choice(["location", "implementation", "URL", "documentURI", "compatMode"]),
+            random.choice(["Object", "Function", "Array", "Number", "parseFloat", "undefined"]),
             perf_now,
             self.sid,
             "",
@@ -317,9 +297,7 @@ class SentinelTokenGenerator:
 
     @staticmethod
     def _base64_encode(data):
-        raw = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode(
-            "utf-8"
-        )
+        raw = json.dumps(data, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         return base64.b64encode(raw).decode("ascii")
 
     def _run_check(self, start_time, seed, difficulty, config, nonce):
@@ -371,8 +349,7 @@ def fetch_sentinel_challenge(
         "Referer": "https://sentinel.openai.com/backend-api/sentinel/frame.html",
         "Origin": "https://sentinel.openai.com",
         "User-Agent": user_agent or "Mozilla/5.0",
-        "sec-ch-ua": sec_ch_ua
-        or '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
+        "sec-ch-ua": sec_ch_ua or '"Not:A-Brand";v="99", "Google Chrome";v="145", "Chromium";v="145"',
         "sec-ch-ua-mobile": "?0",
         "sec-ch-ua-platform": '"Windows"',
     }
@@ -386,9 +363,7 @@ def fetch_sentinel_challenge(
         kwargs["impersonate"] = impersonate
 
     try:
-        resp = session.post(
-            "https://sentinel.openai.com/backend-api/sentinel/req", **kwargs
-        )
+        resp = session.post("https://sentinel.openai.com/backend-api/sentinel/req", **kwargs)
     except Exception:
         return None
 
@@ -489,12 +464,12 @@ def _save_codex_tokens(email: str, tokens: Optional[dict[str, Any]]):
     exp_timestamp = payload.get("exp")
     expired_str = ""
     if isinstance(exp_timestamp, int) and exp_timestamp > 0:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timedelta, timezone
 
         exp_dt = datetime.fromtimestamp(exp_timestamp, tz=timezone(timedelta(hours=8)))
         expired_str = exp_dt.strftime("%Y-%m-%dT%H:%M:%S+08:00")
 
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     now = datetime.now(tz=timezone(timedelta(hours=8)))
     token_data = {
@@ -511,9 +486,7 @@ def _save_codex_tokens(email: str, tokens: Optional[dict[str, Any]]):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     token_base = os.path.expanduser(_token_base_dir())
     model_name = _model_provider_name()
-    root_dir = (
-        token_base if os.path.isabs(token_base) else os.path.join(base_dir, token_base)
-    )
+    root_dir = token_base if os.path.isabs(token_base) else os.path.join(base_dir, token_base)
     token_dir = os.path.join(root_dir, model_name)
     os.makedirs(token_dir, exist_ok=True)
 
@@ -570,9 +543,7 @@ class ChatGPTRegister:
             self.sec_ch_ua,
         ) = _random_chrome_version()
 
-        self.session = cast(
-            Any, curl_requests.Session(impersonate=cast(Any, self.impersonate))
-        )
+        self.session = cast(Any, curl_requests.Session(impersonate=cast(Any, self.impersonate)))
 
         self.proxy = proxy
         if self.proxy:
@@ -615,9 +586,7 @@ class ChatGPTRegister:
         lines = [f"{prefix}{step} | {method} {url} | status={status}"]
         if body:
             try:
-                lines.append(
-                    f"{prefix}response={json.dumps(body, ensure_ascii=False)[:600]}"
-                )
+                lines.append(f"{prefix}response={json.dumps(body, ensure_ascii=False)[:600]}")
             except Exception:
                 lines.append(f"{prefix}response={str(body)[:600]}")
         self._logger.debug(" | ".join(lines))
@@ -653,15 +622,11 @@ class ChatGPTRegister:
 
     def _fetch_emails(self, mail_token: str):
         """从邮箱 provider 获取邮件列表"""
-        return mail_utils.fetch_emails(
-            mail_token=mail_token, provider=self.mail_provider
-        )
+        return mail_utils.fetch_emails(mail_token=mail_token, provider=self.mail_provider)
 
     def _fetch_email_detail(self, mail_token: str, msg_id: str):
         """获取邮箱 provider 单封邮件详情"""
-        return mail_utils.fetch_email_detail(
-            msg_id=msg_id, mail_token=mail_token, provider=self.mail_provider
-        )
+        return mail_utils.fetch_email_detail(msg_id=msg_id, mail_token=mail_token, provider=self.mail_provider)
 
     def _extract_verification_code(self, email_content: str):
         """从邮件内容提取 6 位验证码"""
@@ -705,9 +670,7 @@ class ChatGPTRegister:
 
     def get_csrf(self) -> str:
         url = f"{self.BASE}/api/auth/csrf"
-        r = self.session.get(
-            url, headers={"Accept": "application/json", "Referer": f"{self.BASE}/"}
-        )
+        r = self.session.get(url, headers={"Accept": "application/json", "Referer": f"{self.BASE}/"})
         data = r.json()
         token = data.get("csrfToken", "")
         self._log("1. Get CSRF", "GET", url, r.status_code, data)
@@ -766,9 +729,7 @@ class ChatGPTRegister:
             "Origin": self.AUTH,
         }
         headers.update(_make_trace_headers())
-        r = self.session.post(
-            url, json={"username": email, "password": password}, headers=headers
-        )
+        r = self.session.post(url, json={"username": email, "password": password}, headers=headers)
         try:
             data = r.json()
         except Exception:
@@ -820,9 +781,7 @@ class ChatGPTRegister:
             "Origin": self.AUTH,
         }
         headers.update(_make_trace_headers())
-        r = self.session.post(
-            url, json={"name": name, "birthdate": birthdate}, headers=headers
-        )
+        r = self.session.post(url, json={"name": name, "birthdate": birthdate}, headers=headers)
         try:
             data = r.json()
         except Exception:
@@ -956,9 +915,7 @@ class ChatGPTRegister:
 
             for val in candidates:
                 try:
-                    if (val.startswith('"') and val.endswith('"')) or (
-                        val.startswith("'") and val.endswith("'")
-                    ):
+                    if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
                         val = val[1:-1]
 
                     part = val.split(".")[0] if "." in val else val
@@ -973,9 +930,7 @@ class ChatGPTRegister:
                     continue
         return None
 
-    def _oauth_allow_redirect_extract_code(
-        self, url: str, referer: Optional[str] = None
-    ):
+    def _oauth_allow_redirect_extract_code(self, url: str, referer: Optional[str] = None):
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Upgrade-Insecure-Requests": "1",
@@ -1019,9 +974,7 @@ class ChatGPTRegister:
 
         return None
 
-    def _oauth_follow_for_code(
-        self, start_url: str, referer: Optional[str] = None, max_hops: int = 16
-    ):
+    def _oauth_follow_for_code(self, start_url: str, referer: Optional[str] = None, max_hops: int = 16):
         oauth_issuer = _oauth_issuer()
         headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -1054,9 +1007,7 @@ class ChatGPTRegister:
                 return None, last_url
 
             last_url = str(resp.url)
-            self._print(
-                f"[OAuth] follow[{hop + 1}] {resp.status_code} {last_url[:140]}"
-            )
+            self._print(f"[OAuth] follow[{hop + 1}] {resp.status_code} {last_url[:140]}")
             code = _extract_code_from_url(last_url)
             if code:
                 return code, last_url
@@ -1087,9 +1038,7 @@ class ChatGPTRegister:
                 cookie_names = [getattr(c, "name", "") for c in list(jar)]
             else:
                 cookie_names = list(self.session.cookies.keys())
-            self._print(
-                f"[OAuth] 无法解码 oai-client-auth-session, cookies={cookie_names[:12]}"
-            )
+            self._print(f"[OAuth] 无法解码 oai-client-auth-session, cookies={cookie_names[:12]}")
             return None
 
         workspaces = session_data.get("workspaces", [])
@@ -1147,9 +1096,7 @@ class ChatGPTRegister:
         ws_next = ws_data.get("continue_url", "")
         orgs = ws_data.get("data", {}).get("orgs", [])
         ws_page = (ws_data.get("page") or {}).get("type", "")
-        self._print(
-            f"[OAuth] workspace/select page={ws_page or '-'} next={(ws_next or '-')[:140]}"
-        )
+        self._print(f"[OAuth] workspace/select page={ws_page or '-'} next={(ws_next or '-')[:140]}")
 
         org_id = None
         project_id = None
@@ -1166,11 +1113,7 @@ class ChatGPTRegister:
 
             h_org = dict(h)
             if ws_next:
-                h_org["Referer"] = (
-                    ws_next
-                    if ws_next.startswith("http")
-                    else f"{oauth_issuer}{ws_next}"
-                )
+                h_org["Referer"] = ws_next if ws_next.startswith("http") else f"{oauth_issuer}{ws_next}"
 
             resp_org = self.session.post(
                 f"{oauth_issuer}/api/accounts/organization/select",
@@ -1190,9 +1133,7 @@ class ChatGPTRegister:
                     return code
                 code, _ = self._oauth_follow_for_code(loc, referer=h_org.get("Referer"))
                 if not code:
-                    code = self._oauth_allow_redirect_extract_code(
-                        loc, referer=h_org.get("Referer")
-                    )
+                    code = self._oauth_allow_redirect_extract_code(loc, referer=h_org.get("Referer"))
                 return code
 
             if resp_org.status_code == 200:
@@ -1204,19 +1145,13 @@ class ChatGPTRegister:
 
                 org_next = org_data.get("continue_url", "")
                 org_page = (org_data.get("page") or {}).get("type", "")
-                self._print(
-                    f"[OAuth] organization/select page={org_page or '-'} next={(org_next or '-')[:140]}"
-                )
+                self._print(f"[OAuth] organization/select page={org_page or '-'} next={(org_next or '-')[:140]}")
                 if org_next:
                     if org_next.startswith("/"):
                         org_next = f"{oauth_issuer}{org_next}"
-                    code, _ = self._oauth_follow_for_code(
-                        org_next, referer=h_org.get("Referer")
-                    )
+                    code, _ = self._oauth_follow_for_code(org_next, referer=h_org.get("Referer"))
                     if not code:
-                        code = self._oauth_allow_redirect_extract_code(
-                            org_next, referer=h_org.get("Referer")
-                        )
+                        code = self._oauth_allow_redirect_extract_code(org_next, referer=h_org.get("Referer"))
                     return code
 
         if ws_next:
@@ -1224,16 +1159,12 @@ class ChatGPTRegister:
                 ws_next = f"{oauth_issuer}{ws_next}"
             code, _ = self._oauth_follow_for_code(ws_next, referer=consent_url)
             if not code:
-                code = self._oauth_allow_redirect_extract_code(
-                    ws_next, referer=consent_url
-                )
+                code = self._oauth_allow_redirect_extract_code(ws_next, referer=consent_url)
             return code
 
         return None
 
-    def perform_codex_oauth_login_http(
-        self, email: str, password: str, mail_token: str = None
-    ):
+    def perform_codex_oauth_login_http(self, email: str, password: str, mail_token: str = None):
         oauth_issuer = _oauth_issuer()
         oauth_client_id = _MODEL_PROVIDER.oauth_client_id()
         oauth_redirect_uri = _MODEL_PROVIDER.oauth_redirect_uri()
@@ -1290,13 +1221,9 @@ class ChatGPTRegister:
 
             final_url = str(r.url)
             redirects = len(getattr(r, "history", []) or [])
-            self._print(
-                f"[OAuth] /oauth/authorize -> {r.status_code}, final={(final_url or '-')[:140]}, redirects={redirects}"
-            )
+            self._print(f"[OAuth] /oauth/authorize -> {r.status_code}, final={(final_url or '-')[:140]}, redirects={redirects}")
 
-            has_login = any(
-                getattr(c, "name", "") == "login_session" for c in self.session.cookies
-            )
+            has_login = any(getattr(c, "name", "") == "login_session" for c in self.session.cookies)
             self._print(f"[OAuth] login_session: {'已获取' if has_login else '未获取'}")
 
             if not has_login:
@@ -1324,13 +1251,8 @@ class ChatGPTRegister:
                 except Exception as e:
                     self._print(f"[OAuth] /api/oauth/oauth2/auth 异常: {e}")
 
-                has_login = any(
-                    getattr(c, "name", "") == "login_session"
-                    for c in self.session.cookies
-                )
-                self._print(
-                    f"[OAuth] login_session(重试): {'已获取' if has_login else '未获取'}"
-                )
+                has_login = any(getattr(c, "name", "") == "login_session" for c in self.session.cookies)
+                self._print(f"[OAuth] login_session(重试): {'已获取' if has_login else '未获取'}")
 
             return has_login, final_url
 
@@ -1367,11 +1289,7 @@ class ChatGPTRegister:
         if not authorize_final_url:
             return None
 
-        continue_referer = (
-            authorize_final_url
-            if authorize_final_url.startswith(oauth_issuer)
-            else f"{oauth_issuer}/log-in"
-        )
+        continue_referer = authorize_final_url if authorize_final_url.startswith(oauth_issuer) else f"{oauth_issuer}/log-in"
 
         self._print("[OAuth] 2/7 POST /api/accounts/authorize/continue")
         resp_continue = _post_authorize_continue(continue_referer)
@@ -1379,24 +1297,16 @@ class ChatGPTRegister:
             return None
 
         self._print(f"[OAuth] /authorize/continue -> {resp_continue.status_code}")
-        if resp_continue.status_code == 400 and "invalid_auth_step" in (
-            resp_continue.text or ""
-        ):
+        if resp_continue.status_code == 400 and "invalid_auth_step" in (resp_continue.text or ""):
             self._print("[OAuth] invalid_auth_step，重新 bootstrap 后重试一次")
             has_login_session, authorize_final_url = _bootstrap_oauth_session()
             if not authorize_final_url:
                 return None
-            continue_referer = (
-                authorize_final_url
-                if authorize_final_url.startswith(oauth_issuer)
-                else f"{oauth_issuer}/log-in"
-            )
+            continue_referer = authorize_final_url if authorize_final_url.startswith(oauth_issuer) else f"{oauth_issuer}/log-in"
             resp_continue = _post_authorize_continue(continue_referer)
             if resp_continue is None:
                 return None
-            self._print(
-                f"[OAuth] /authorize/continue(重试) -> {resp_continue.status_code}"
-            )
+            self._print(f"[OAuth] /authorize/continue(重试) -> {resp_continue.status_code}")
 
         if resp_continue.status_code != 200:
             self._print(f"[OAuth] 邮箱提交失败: {resp_continue.text[:180]}")
@@ -1410,9 +1320,7 @@ class ChatGPTRegister:
 
         continue_url = continue_data.get("continue_url", "")
         page_type = (continue_data.get("page") or {}).get("type", "")
-        self._print(
-            f"[OAuth] continue page={page_type or '-'} next={(continue_url or '-')[:140]}"
-        )
+        self._print(f"[OAuth] continue page={page_type or '-'} next={(continue_url or '-')[:140]}")
 
         self._print("[OAuth] 3/7 POST /api/accounts/password/verify")
         sentinel_pwd = build_sentinel_token(
@@ -1456,14 +1364,10 @@ class ChatGPTRegister:
 
         continue_url = verify_data.get("continue_url", "") or continue_url
         page_type = (verify_data.get("page") or {}).get("type", "") or page_type
-        self._print(
-            f"[OAuth] verify page={page_type or '-'} next={(continue_url or '-')[:140]}"
-        )
+        self._print(f"[OAuth] verify page={page_type or '-'} next={(continue_url or '-')[:140]}")
 
         need_oauth_otp = (
-            page_type == "email_otp_verification"
-            or "email-verification" in (continue_url or "")
-            or "email-otp" in (continue_url or "")
+            page_type == "email_otp_verification" or "email-verification" in (continue_url or "") or "email-otp" in (continue_url or "")
         )
 
         if need_oauth_otp:
@@ -1492,11 +1396,7 @@ class ChatGPTRegister:
                     ).strip()
                     if list_content:
                         code = self._extract_verification_code(list_content)
-                        if (
-                            code
-                            and code not in tried_codes
-                            and code not in candidate_codes
-                        ):
+                        if code and code not in tried_codes and code not in candidate_codes:
                             candidate_codes.append(code)
 
                     msg_id = msg.get("id") or msg.get("@id")
@@ -1540,13 +1440,9 @@ class ChatGPTRegister:
                         self._print(f"[OAuth] email-otp/validate 异常: {e}")
                         continue
 
-                    self._print(
-                        f"[OAuth] /email-otp/validate -> {resp_otp.status_code}"
-                    )
+                    self._print(f"[OAuth] /email-otp/validate -> {resp_otp.status_code}")
                     if resp_otp.status_code != 200:
-                        self._print(
-                            f"[OAuth] OTP 无效，继续尝试下一条: {resp_otp.text[:160]}"
-                        )
+                        self._print(f"[OAuth] OTP 无效，继续尝试下一条: {resp_otp.text[:160]}")
                         continue
 
                     try:
@@ -1556,12 +1452,8 @@ class ChatGPTRegister:
                         continue
 
                     continue_url = otp_data.get("continue_url", "") or continue_url
-                    page_type = (otp_data.get("page") or {}).get(
-                        "type", ""
-                    ) or page_type
-                    self._print(
-                        f"[OAuth] OTP 验证通过 page={page_type or '-'} next={(continue_url or '-')[:140]}"
-                    )
+                    page_type = (otp_data.get("page") or {}).get("type", "") or page_type
+                    self._print(f"[OAuth] OTP 验证通过 page={page_type or '-'} next={(continue_url or '-')[:140]}")
                     otp_success = True
                     break
 
@@ -1569,9 +1461,7 @@ class ChatGPTRegister:
                     time.sleep(2)
 
             if not otp_success:
-                self._print(
-                    f"[OAuth] OAuth 阶段 OTP 验证失败，已尝试 {len(tried_codes)} 个验证码"
-                )
+                self._print(f"[OAuth] OAuth 阶段 OTP 验证失败，已尝试 {len(tried_codes)} 个验证码")
                 return None
 
         code = None
@@ -1587,9 +1477,7 @@ class ChatGPTRegister:
 
         if not code and consent_url:
             self._print("[OAuth] 5/7 跟随 continue_url 提取 code")
-            code, _ = self._oauth_follow_for_code(
-                consent_url, referer=f"{oauth_issuer}/log-in/password"
-            )
+            code, _ = self._oauth_follow_for_code(consent_url, referer=f"{oauth_issuer}/log-in/password")
 
         consent_hint = (
             ("consent" in (consent_url or ""))
@@ -1611,9 +1499,7 @@ class ChatGPTRegister:
             self._print("[OAuth] 6/7 回退 consent 路径重试")
             code = self._oauth_submit_workspace_and_org(fallback_consent)
             if not code:
-                code, _ = self._oauth_follow_for_code(
-                    fallback_consent, referer=f"{oauth_issuer}/log-in/password"
-                )
+                code, _ = self._oauth_follow_for_code(fallback_consent, referer=f"{oauth_issuer}/log-in/password")
 
         if not code:
             self._print("[OAuth] 未获取到 authorization code")
@@ -1639,9 +1525,7 @@ class ChatGPTRegister:
         self._print(f"[OAuth] /oauth/token -> {token_resp.status_code}")
 
         if token_resp.status_code != 200:
-            self._print(
-                f"[OAuth] token 交换失败: {token_resp.status_code} {token_resp.text[:200]}"
-            )
+            self._print(f"[OAuth] token 交换失败: {token_resp.status_code} {token_resp.text[:200]}")
             return None
 
         try:
@@ -1668,9 +1552,7 @@ def _register_one(idx, total, proxy):
         reg = ChatGPTRegister(proxy=proxy, tag=f"{idx}")
 
         # 1. 创建临时邮箱
-        reg._print(
-            f"[Mail:{_MAIL_PROVIDER_INFO.get('name', 'unknown')}] 创建临时邮箱..."
-        )
+        reg._print(f"[Mail:{_MAIL_PROVIDER_INFO.get('name', 'unknown')}] 创建临时邮箱...")
         email, email_pwd, mail_token = reg.create_temp_email()
         tag = email.split("@")[0]
         reg.tag = tag  # 更新 tag
@@ -1697,9 +1579,7 @@ def _register_one(idx, total, proxy):
         oauth_ok = True
         if _MODEL_PROVIDER.oauth_enabled():
             reg._print("[OAuth] 开始获取 Codex Token...")
-            tokens = reg.perform_codex_oauth_login_http(
-                email, chatgpt_password, mail_token=mail_token
-            )
+            tokens = reg.perform_codex_oauth_login_http(email, chatgpt_password, mail_token=mail_token)
             oauth_ok = bool(tokens and tokens.get("access_token"))
             if oauth_ok:
                 _save_codex_tokens(email, tokens)
@@ -1754,9 +1634,7 @@ def run_batch(
         "开启" if _MODEL_PROVIDER.oauth_enabled() else "关闭",
     )
     if _MODEL_PROVIDER.oauth_enabled():
-        logger.debug(
-            f"OAuth issuer={_oauth_issuer()} client={_MODEL_PROVIDER.oauth_client_id()}"
-        )
+        logger.debug(f"OAuth issuer={_oauth_issuer()} client={_MODEL_PROVIDER.oauth_client_id()}")
         logger.debug(f"Token输出 dir={_token_base_dir()}/{_model_provider_name()}")
 
     success_count = 0
@@ -1785,7 +1663,5 @@ def run_batch(
 
     elapsed = time.time() - start_time
     avg = elapsed / total_accounts if total_accounts else 0
-    logger.info(
-        f"注册完成: 耗时 {elapsed:.1f}s | 总数 {total_accounts} | 成功 {success_count} | 失败 {fail_count}"
-    )
+    logger.info(f"注册完成: 耗时 {elapsed:.1f}s | 总数 {total_accounts} | 成功 {success_count} | 失败 {fail_count}")
     logger.info(f"平均速度: {avg:.1f}s/个")

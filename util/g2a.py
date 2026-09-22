@@ -121,11 +121,7 @@ def _clear_admin_cache():
 
 def _get_admin_token(api_base, username, password, proxies, force=False):
     global _admin_token, _admin_expires_at, _admin_session_key
-    session_key = "%s\n%s\n%s" % (
-        api_base,
-        username,
-        hashlib.sha256(password.encode("utf-8")).hexdigest(),
-    )
+    session_key = f"{api_base}\n{username}\n{hashlib.sha256(password.encode('utf-8')).hexdigest()}"
     with _ADMIN_LOCK:
         now = datetime.now(timezone.utc)
         if (
@@ -147,22 +143,16 @@ def _get_admin_token(api_base, username, password, proxies, force=False):
                 verify=True,
             )
         except Exception as exc:
-            raise RemoteTokenRequestError(
-                f"新版 grok2api 管理员登录请求失败: {endpoint}: {exc}"
-            ) from exc
+            raise RemoteTokenRequestError(f"新版 grok2api 管理员登录请求失败: {endpoint}: {exc}") from exc
         status = int(getattr(response, "status_code", 0) or 0)
         if not 200 <= status < 300:
-            raise RemoteTokenRequestError(
-                f"新版 grok2api 管理员登录失败: {endpoint}: HTTP {status}"
-            )
+            raise RemoteTokenRequestError(f"新版 grok2api 管理员登录失败: {endpoint}: HTTP {status}")
         try:
             tokens = response.json().get("data", {}).get("tokens", {})
             token = str(tokens.get("accessToken") or "").strip()
             expiry = str(tokens.get("accessTokenExpiresAt") or "").strip()
         except Exception as exc:
-            raise RemoteTokenCompatibilityError(
-                "新版 grok2api 登录响应格式不兼容"
-            ) from exc
+            raise RemoteTokenCompatibilityError("新版 grok2api 登录响应格式不兼容") from exc
         if not token:
             raise RemoteTokenCompatibilityError("新版 grok2api 登录响应缺少 accessToken")
         try:
@@ -192,17 +182,11 @@ def _parse_go_import(response, secrets=()):
         except Exception:
             data = {"message": line[5:].strip()}
         if current_event == "error":
-            message = (
-                str(data.get("message") or data.get("error") or "")
-                if isinstance(data, dict)
-                else ""
-            )
+            message = str(data.get("message") or data.get("error") or "") if isinstance(data, dict) else ""
             for secret in secrets:
                 if secret:
                     message = message.replace(str(secret), "[REDACTED]")
-            raise RemoteTokenRequestError(
-                "新版 grok2api 导入失败" + (f": {message[:200]}" if message else "")
-            )
+            raise RemoteTokenRequestError("新版 grok2api 导入失败" + (f": {message[:200]}" if message else ""))
         if current_event == "complete":
             completed = data if isinstance(data, dict) else {}
     if completed is None:
@@ -246,9 +230,7 @@ def _upload_go_remote(tokens, cfg, proxies, logger=None):
                 verify=True,
             )
         except Exception as exc:
-            raise RemoteTokenRequestError(
-                f"新版 grok2api SSO 导入请求失败: {endpoint}: {exc}"
-            ) from exc
+            raise RemoteTokenRequestError(f"新版 grok2api SSO 导入请求失败: {endpoint}: {exc}") from exc
         finally:
             multipart.close()
         status = int(getattr(response, "status_code", 0) or 0)
@@ -256,26 +238,20 @@ def _upload_go_remote(tokens, cfg, proxies, logger=None):
             _clear_admin_cache()
             continue
         if not 200 <= status < 300:
-            raise RemoteTokenRequestError(
-                f"新版 grok2api SSO 导入失败: {endpoint}: HTTP {status}"
-            )
+            raise RemoteTokenRequestError(f"新版 grok2api SSO 导入失败: {endpoint}: HTTP {status}")
         result = _parse_go_import(response, (access_token, *tokens))
         summary = ", ".join(
-            f"{key}={result.get(key)}"
-            for key in ("created", "updated", "skipped", "synced", "syncFailed")
-            if result.get(key) is not None
+            f"{key}={result.get(key)}" for key in ("created", "updated", "skipped", "synced", "syncFailed") if result.get(key) is not None
         )
         if int(result.get("syncFailed") or 0):
             _log(
                 logger,
-                "[G2A] 上传成功: SSO 已导入，但初始同步失败"
-                + (f": {summary}" if summary else ""),
+                "[G2A] 上传成功: SSO 已导入，但初始同步失败" + (f": {summary}" if summary else ""),
             )
             return True
         _log(
             logger,
-            f"[G2A] 上传成功：已导入新版 grok2api Grok Web（共 {len(tokens)} 个）"
-            + (f": {summary}" if summary else ""),
+            f"[G2A] 上传成功：已导入新版 grok2api Grok Web（共 {len(tokens)} 个）" + (f": {summary}" if summary else ""),
         )
         return True
     raise RemoteTokenRequestError("新版 grok2api 管理员认证已失效")

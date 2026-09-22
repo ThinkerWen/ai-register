@@ -17,12 +17,20 @@ def _parse_cpa_config(config):
 
 
 def should_upload(config):
-    enabled, api_url, _, = _parse_cpa_config(config)
+    (
+        enabled,
+        api_url,
+        _,
+    ) = _parse_cpa_config(config)
     return enabled and bool(api_url)
 
 
 def validate_cpa_config(config):
-    enabled, api_url, _, = _parse_cpa_config(config)
+    (
+        enabled,
+        api_url,
+        _,
+    ) = _parse_cpa_config(config)
     if not enabled:
         return True, "cpa disabled"
     if not api_url:

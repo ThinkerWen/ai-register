@@ -73,9 +73,7 @@ def _set_chrome_temp_dir(value: str):
 
 
 SIGNUP_URL = "https://accounts.x.ai/sign-up?redirect=grok-com"
-EXTENSION_PATH = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "turnstilePatch")
-)
+EXTENSION_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "turnstilePatch"))
 
 
 class RegistrationStageError(Exception):
@@ -162,9 +160,7 @@ def _get_provider_cfg():
 
 def _default_sso_file(config):
     token_dir = os.path.expanduser(str(config.get("token_dir") or "token_dir"))
-    root = (
-        token_dir if os.path.isabs(token_dir) else os.path.join(os.getcwd(), token_dir)
-    )
+    root = token_dir if os.path.isabs(token_dir) else os.path.join(os.getcwd(), token_dir)
     sso_dir = os.path.join(root, "grok")
     os.makedirs(sso_dir, exist_ok=True)
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -191,10 +187,7 @@ return { url: location.href, title, text, buttons };
         return f"page_state_unavailable: {exc}"
     if not isinstance(info, dict):
         return str(info)
-    return (
-        f"url={info.get('url', '')} | title={info.get('title', '')} | "
-        f"text={info.get('text', '')} | buttons={info.get('buttons', [])}"
-    )
+    return f"url={info.get('url', '')} | title={info.get('title', '')} | text={info.get('text', '')} | buttons={info.get('buttons', [])}"
 
 
 def run_stage(stage: str, func, *args, **kwargs):
@@ -238,17 +231,13 @@ def ensure_stable_python_runtime():
 
 def warn_runtime_compatibility():
     if sys.version_info >= (3, 14):
-        logger.warning(
-            "当前 Python 为 3.14+；若出现 Mail TLS 异常，建议改用 Python 3.12 或 3.13。"
-        )
+        logger.warning("当前 Python 为 3.14+；若出现 Mail TLS 异常，建议改用 Python 3.12 或 3.13。")
 
 
 def _create_chromium_options():
     config = _get_config()
     provider_cfg = _get_provider_cfg()
-    browser_proxy = str(
-        provider_cfg.get("browser_proxy") or config.get("proxy") or ""
-    ).strip()
+    browser_proxy = str(provider_cfg.get("browser_proxy") or config.get("proxy") or "").strip()
 
     options = ChromiumOptions()
     options.set_local_port(_pick_local_debug_port())
@@ -261,9 +250,7 @@ def _create_chromium_options():
         logger.info("浏览器代理: {}", browser_proxy)
 
     if platform.system() == "Linux":
-        playwright_chromes = glob(
-            os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome")
-        )
+        playwright_chromes = glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome"))
         if playwright_chromes:
             options.set_browser_path(playwright_chromes[0])
         else:
@@ -661,9 +648,7 @@ def getTurnstileToken():
     page.run_js("try { turnstile.reset() } catch(e) { }")
     for _ in range(15):
         try:
-            turnstileResponse = page.run_js(
-                "try { return turnstile.getResponse() } catch(e) { return null }"
-            )
+            turnstileResponse = page.run_js("try { return turnstile.getResponse() } catch(e) { return null }")
             if turnstileResponse:
                 return turnstileResponse
             challengeSolution = page.ele("@name=cf-turnstile-response")
@@ -721,9 +706,7 @@ def extract_verification_code(content: str) -> Optional[str]:
     return None
 
 
-def wait_for_verification_code(
-    mail_provider, mail_token: str, timeout: int = 120
-) -> Optional[str]:
+def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 120) -> Optional[str]:
     start = time.time()
     seen_ids = set()
     while time.time() - start < timeout:
@@ -977,9 +960,7 @@ def wait_for_sso_cookie(timeout=30):
         except Exception:
             pass
         time.sleep(1)
-    raise Exception(
-        f"注册完成后未获取到 sso cookie，当前已见 cookie: {sorted(last_seen_names)}"
-    )
+    raise Exception(f"注册完成后未获取到 sso cookie，当前已见 cookie: {sorted(last_seen_names)}")
 
 
 def append_sso_to_txt(sso_value, output_path):
@@ -1056,20 +1037,20 @@ def _run_loop(total_accounts, output_path, extract_numbers=False, max_workers=No
                 try:
                     result = future.result()
                     collected_sso.append(result["sso"])
+                    if g2a_utils.should_upload(_get_config()):
+                        logger.info("准备推送 1 个 token 到 API...")
+                        g2a_utils.upload_sso_tokens(
+                            [result["sso"]],
+                            _get_config(),
+                            proxy=str(_get_config().get("proxy") or ""),
+                            logger=logger.info,
+                        )
                 except KeyboardInterrupt:
                     logger.info("收到中断信号，停止执行。")
                     raise
                 except Exception as error:
                     logger.error("注册失败: {}", error)
     finally:
-        if collected_sso and g2a_utils.should_upload(_get_config()):
-            logger.info("准备推送 {} 个 token 到 API...", len(collected_sso))
-            g2a_utils.upload_sso_tokens(
-                collected_sso,
-                _get_config(),
-                proxy=str(_get_config().get("proxy") or ""),
-                logger=logger.info,
-            )
         stop_browser()
 
 
@@ -1079,9 +1060,7 @@ def run_batch(total_accounts=None, max_workers=None, proxy=None):
     provider = GrokModelProvider(
         browser_proxy=provider_cfg.get("browser_proxy"),
     )
-    return provider.run_batch(
-        total_accounts=total_accounts, max_workers=max_workers, proxy=proxy
-    )
+    return provider.run_batch(total_accounts=total_accounts, max_workers=max_workers, proxy=proxy)
 
 
 def main():

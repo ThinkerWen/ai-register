@@ -2,7 +2,6 @@ from register.base import ModelProviderError
 from register.grok.grok import GrokModelProvider
 from register.openai.openai import OpenAIModelProvider
 
-
 _PROVIDER_REGISTRY = {
     "grok": GrokModelProvider,
     "openai": OpenAIModelProvider,
@@ -34,9 +33,7 @@ def create_model_provider(config):
     provider_cls = _PROVIDER_REGISTRY.get(provider_name)
     if not provider_cls:
         available = ", ".join(sorted(_PROVIDER_REGISTRY.keys()))
-        raise ModelProviderError(
-            f"不支持的 model_provider: {provider_name} (可选: {available})"
-        )
+        raise ModelProviderError(f"不支持的 model_provider: {provider_name} (可选: {available})")
 
     provider_cfg = _resolve_provider_settings(config, provider_name)
     if provider_name == "openai":

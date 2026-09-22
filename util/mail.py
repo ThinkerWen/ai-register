@@ -264,11 +264,13 @@ def wait_for_verification_email(
                 if not detail:
                     continue
 
-                detail_content = "\n".join([
-                    detail.get("subject") or "",
-                    detail.get("text") or detail.get("body") or "",
-                    detail.get("html") or "",
-                ]).strip()
+                detail_content = "\n".join(
+                    [
+                        detail.get("subject") or "",
+                        detail.get("text") or detail.get("body") or "",
+                        detail.get("html") or "",
+                    ]
+                ).strip()
                 if not detail_content:
                     continue
 

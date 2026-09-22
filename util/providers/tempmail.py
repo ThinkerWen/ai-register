@@ -1,5 +1,5 @@
-from TempMail import TempMail
 import requests
+from TempMail import TempMail
 
 from util.providers.base import MailProvider, MailProviderError
 
