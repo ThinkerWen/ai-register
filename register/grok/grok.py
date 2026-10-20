@@ -241,7 +241,9 @@ def _create_chromium_options():
 
     options = ChromiumOptions()
     options.set_local_port(_pick_local_debug_port())
-    options.set_argument("--no-sandbox")
+    # 仅兼容 Linux root 运行，普通桌面环境保留浏览器沙箱。
+    if platform.system() == "Linux" and os.geteuid() == 0:
+        options.set_argument("--no-sandbox")
     options.set_argument("--disable-gpu")
     options.set_argument("--disable-dev-shm-usage")
     options.set_argument("--disable-software-rasterizer")
@@ -403,6 +405,36 @@ return true;
     raise Exception("未找到使用邮箱注册按钮")
 
 
+def _check_email_submission():
+    state = page.run_js(r"""
+const text = String(document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+const error = text.match(/Your email address is invalid\. Please use a different email address\./i);
+if (error) return {error: error[0], ready: false};
+function isVisible(node) {
+    const style = window.getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && rect.width > 0 && rect.height > 0;
+}
+const inputs = Array.from(document.querySelectorAll('input[data-input-otp="true"], input[name="code"], input[autocomplete="one-time-code"], input[inputmode="numeric"], input[inputmode="text"], input[maxlength="1"]'));
+return {error: '', ready: inputs.some((node) => node.type !== 'email' && isVisible(node) && !node.disabled && !node.readOnly)};
+    """)
+    if state.get("error"):
+        raise RegistrationStageError("提交邮箱", f"邮箱被拒绝: {state['error']}")
+    return bool(state.get("ready"))
+
+
+def _wait_for_email_submission(timeout):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            if _check_email_submission():
+                return
+        except PageDisconnectedError:
+            refresh_active_page()
+        time.sleep(0.25)
+    raise RegistrationStageError("提交邮箱", "提交邮箱后未进入验证码页面")
+
+
 def fill_email_and_submit(timeout=15):
     config = _get_config()
     mail_provider = mail_utils.create_mail_provider(
@@ -471,7 +503,8 @@ submitButton.click();
 return true;
         """)
         if clicked:
-            logger.info("邮箱提交成功: {}", email)
+            _wait_for_email_submission(timeout)
+            logger.info("邮箱提交完成，已进入验证码页面: {}", email)
             return email, dev_token
         time.sleep(0.5)
     raise Exception("未找到邮箱输入框或注册按钮")
@@ -492,6 +525,7 @@ def fill_code_and_submit(email, dev_token, timeout=120):
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
+            _check_email_submission()
             filled = page.run_js(
                 """
 const code = String(arguments[0] || '').trim();
@@ -710,7 +744,9 @@ def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 12
     start = time.time()
     seen_ids = set()
     while time.time() - start < timeout:
+        _check_email_submission()
         messages = mail_provider.fetch_emails(mail_token) or []
+        _check_email_submission()
         if messages:
             logger.info("收到 {} 封候选邮件，开始扫描验证码。", len(messages))
         for msg in messages:
@@ -735,6 +771,7 @@ def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 12
                 continue
             seen_ids.add(msg_id)
             detail = mail_provider.fetch_email_detail(mail_token, str(msg_id))
+            _check_email_submission()
             if not isinstance(detail, dict):
                 continue
             content = "\n".join(
