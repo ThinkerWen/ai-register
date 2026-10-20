@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" fill="none" role="img" aria-labelledby="title desc">
+  <title id="title">ai-register</title>
+  <desc id="desc">AI lettering inside a processor with circuit connections on a rounded blue tile.</desc>
+  <defs>
+    <linearGradient id="background" x1="16" y1="8" x2="144" y2="152" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#283778" />
+      <stop offset="1" stop-color="#101A38" />
+    </linearGradient>
+    <linearGradient id="circuit" x1="42" y1="42" x2="118" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67E8F9" />
+      <stop offset="1" stop-color="#818CF8" />
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="152" height="152" rx="36" fill="url(#background)" />
+  <rect x="4.75" y="4.75" width="150.5" height="150.5" rx="35.25" stroke="white" stroke-opacity=".15" stroke-width="1.5" />
+  <path d="M60 30V43M80 30V43M100 30V43M60 117V130M80 117V130M100 117V130M30 60H43M30 80H43M30 100H43M117 60H130M117 80H130M117 100H130" stroke="url(#circuit)" stroke-width="4" stroke-linecap="round" />
+  <rect x="43" y="43" width="74" height="74" rx="15" fill="#172344" stroke="url(#circuit)" stroke-width="4" />
+  <rect x="50" y="50" width="60" height="60" rx="9" stroke="white" stroke-opacity=".08" />
+  <path d="M57 95L69 65L81 95M61 85H77" stroke="#F8FAFC" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M91 65H101M96 65V95M91 95H101" stroke="#67E8F9" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

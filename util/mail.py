@@ -4,10 +4,12 @@ import time
 from util.providers.base import MailProviderError
 from util.providers.duckmail import DuckMailProvider
 from util.providers.tempmail import TempMailLolProvider
+from util.providers.tempmail_hub import TempMailHubProvider
 
 _PROVIDER_REGISTRY = {
     "duckmail": DuckMailProvider,
     "tempmail": TempMailLolProvider,
+    "tempmail_hub": TempMailHubProvider,
 }
 
 
@@ -67,6 +69,18 @@ def create_mail_provider(config, *, user_agent=None, proxy=None, impersonate="ch
             impersonate=impersonate,
         )
 
+    if provider_name == "tempmail_hub":
+        return provider_cls(
+            api_base=provider_cfg.get("api_base"),
+            api_token=provider_cfg.get("api_token"),
+            provider=provider_cfg.get("provider", "auto"),
+            ttl_seconds=provider_cfg.get("ttl_seconds", 3600),
+            create_timeout=provider_cfg.get("create_timeout", 120),
+            poll_interval=provider_cfg.get("poll_interval", 1),
+            proxy=provider_cfg.get("proxy"),
+            user_agent=user_agent,
+        )
+
     raise MailProviderError(f"provider 初始化未实现: {provider_name}")
 
 
@@ -74,7 +88,7 @@ def get_mail_provider_info(config):
     provider_name = _resolve_provider_name(config)
     provider_cfg = _resolve_provider_settings(config, provider_name)
 
-    if provider_name == "duckmail":
+    if provider_name in {"duckmail", "tempmail_hub"}:
         api_base = provider_cfg.get("api_base")
         return {"name": provider_name, "api_base": api_base or ""}
 
