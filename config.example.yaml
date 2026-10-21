@@ -35,7 +35,7 @@ mail_providers:
     # 自部署 Temp Mail 聚合服务，api_base 填服务根地址（不含 /v1）
     api_base: "http://127.0.0.1:8000"
     api_token: "<YOUR_TEMP_MAIL_APP_API_TOKEN>"  # 对应服务端 app.api_token
-    provider: "auto"  # 上游：auto / temp-mail-org / tempmail-lol
+    provider: "auto"  # 上游：auto / xxxx
     ttl_seconds: 3600  # 需在所选上游支持的有效期内
     create_timeout: 120  # 等待异步创建完成的秒数
     poll_interval: 1  # 创建状态查询间隔（秒）

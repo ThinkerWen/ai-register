@@ -386,6 +386,31 @@ return !!(givenInput && familyInput && passwordInput);
         return False
 
 
+def has_existing_account():
+    return bool(
+        page.run_js(r"""
+const text = String(document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+return /找到现有账户|找到现有帐号|existing account found|account already exists/i.test(text);
+    """)
+    )
+
+
+def _wait_for_signup_result(timeout=30):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            refresh_active_page()
+            if has_existing_account():
+                return "exist_account"
+            if has_profile_form():
+                return "new_account"
+            _check_email_submission()
+        except PageDisconnectedError:
+            refresh_active_page()
+        time.sleep(0.25)
+    raise RegistrationStageError("确认账户状态", "验证码提交后未进入注册资料或现有账户页面")
+
+
 def click_email_signup_button(timeout=10):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -446,6 +471,13 @@ def fill_email_and_submit(timeout=15):
     email, _password, dev_token = mail_provider.create_temp_email()
     if not email or not dev_token:
         raise Exception("获取邮箱失败")
+    _submit_email_address(email, timeout=timeout)
+    _wait_for_email_submission(timeout)
+    logger.info("邮箱提交完成，已进入验证码页面: {}", email)
+    return email, dev_token
+
+
+def _submit_email_address(email, timeout=15, *, login=False):
     deadline = time.time() + timeout
     while time.time() < deadline:
         filled = page.run_js(
@@ -482,7 +514,9 @@ return 'filled';
             time.sleep(0.5)
             continue
         time.sleep(0.8)
-        clicked = page.run_js(r"""
+        clicked = page.run_js(
+            r"""
+const login = arguments[0];
 function isVisible(node) {
     if (!node) return false;
     const style = window.getComputedStyle(node);
@@ -496,21 +530,22 @@ const buttons = Array.from(document.querySelectorAll('button[type="submit"], but
 const submitButton = buttons.find((node) => {
     const text = (node.innerText || node.textContent || '').replace(/\s+/g, '');
     const t = text.toLowerCase();
+    if (login) return node.dataset.testid === 'sign-in-submit' || /^(下一步|继续|登录|next|continue|signin|login)$/.test(t);
     return text === '注册' || text.includes('注册') || t === 'signup' || t === 'sign up' || t.includes('sign up');
 });
 if (!submitButton || submitButton.disabled) return false;
 submitButton.click();
 return true;
-        """)
+        """,
+            login,
+        )
         if clicked:
-            _wait_for_email_submission(timeout)
-            logger.info("邮箱提交完成，已进入验证码页面: {}", email)
-            return email, dev_token
+            return
         time.sleep(0.5)
-    raise Exception("未找到邮箱输入框或注册按钮")
+    raise Exception("未找到邮箱输入框或提交按钮")
 
 
-def fill_code_and_submit(email, dev_token, timeout=120):
+def fill_code_and_submit(email, dev_token, timeout=120, *, login=False, ignored_codes=None):
     _ = email
     config = _get_config()
     mail_provider = mail_utils.create_mail_provider(
@@ -519,13 +554,19 @@ def fill_code_and_submit(email, dev_token, timeout=120):
         proxy=str(config.get("proxy") or ""),
         impersonate="chrome131",
     )
-    code = wait_for_verification_code(mail_provider, dev_token, timeout=timeout)
+    code = wait_for_verification_code(mail_provider, dev_token, timeout=timeout, ignored_codes=ignored_codes)
     if not code:
         raise Exception("获取验证码失败")
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
+            if login:
+                _check_login_requirements()
+            if login and _read_sso_cookie()[0]:
+                return code
             _check_email_submission()
+            if not login and has_existing_account():
+                return code
             filled = page.run_js(
                 """
 const code = String(arguments[0] || '').trim();
@@ -595,15 +636,19 @@ return merged === code ? 'filled' : 'box-mismatch';
             )
         except PageDisconnectedError:
             refresh_active_page()
-            if has_profile_form():
-                logger.info("验证码提交后已跳转到最终注册页。")
+            if login:
+                _check_login_requirements()
+            if login and _read_sso_cookie()[0]:
+                return code
+            if not login and (has_existing_account() or has_profile_form()):
+                logger.info("验证码提交后页面已切换。")
                 return code
             time.sleep(1)
             continue
 
         if filled == "not-ready":
-            if has_profile_form():
-                logger.info("已直接进入最终注册页，跳过验证码按钮确认。")
+            if not login and (has_existing_account() or has_profile_form()):
+                logger.info("已进入下一步骤，跳过验证码按钮确认。")
                 return code
             time.sleep(0.5)
             continue
@@ -613,7 +658,13 @@ return merged === code ? 'filled' : 'box-mismatch';
 
         time.sleep(1.2)
         try:
-            clicked = page.run_js(r"""
+            if login:
+                ensure_turnstile_ready()
+            clicked = page.run_js(
+                r"""
+const login = arguments[0];
+const challenge = document.querySelector('input[name="cf-turnstile-response"]');
+if (login && challenge && !challenge.value) return 'challenge-pending';
 function isVisible(node) {
     if (!node) return false;
     const style = window.getComputedStyle(node);
@@ -646,30 +697,37 @@ const buttons = Array.from(document.querySelectorAll('button[type="submit"], but
 const confirmButton = buttons.find((node) => {
     const text = (node.innerText || node.textContent || '').replace(/\s+/g, '');
     const t = text.toLowerCase();
+    if (login && /^(登录|登入|signin|login)$/.test(t)) return true;
     return text === '确认邮箱' || text.includes('确认邮箱') || text === '继续' || text.includes('继续') || text === '下一步' || text.includes('下一步') || t.includes('confirm') || t.includes('continue') || t.includes('next') || t.includes('verify');
 });
 if (!confirmButton) return 'no-button';
 confirmButton.focus();
 confirmButton.click();
 return 'clicked';
-                    """)
+                    """,
+                login,
+            )
         except PageDisconnectedError:
             refresh_active_page()
-            if has_profile_form():
-                logger.info("确认邮箱后页面跳转成功，已进入最终注册页。")
+            if login:
+                _check_login_requirements()
+            if login and _read_sso_cookie()[0]:
+                return code
+            if not login and (has_existing_account() or has_profile_form()):
+                logger.info("确认邮箱后页面已切换。")
                 return code
             clicked = "disconnected"
 
         if clicked == "clicked":
-            logger.info("已填写验证码并点击确认邮箱: {}", code)
+            logger.info("已提交{}验证码。", "登录" if login else "注册")
             time.sleep(2)
             refresh_active_page()
-            if has_profile_form():
+            if not login and has_profile_form():
                 logger.info("验证码确认完成，最终注册页已就绪。")
             return code
         if clicked == "no-button":
             current_url = page.url
-            if "sign-up" in current_url or "signup" in current_url:
+            if not login and ("sign-up" in current_url or "signup" in current_url):
                 return code
         if clicked == "disconnected":
             time.sleep(1)
@@ -678,11 +736,74 @@ return 'clicked';
     raise Exception("未找到验证码输入框或确认邮箱按钮")
 
 
+def login_existing_account(email, dev_token, signup_code, timeout=120):
+    logger.info("找到现有账户，切换邮箱登录 | email={}", email)
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline:
+        clicked = page.run_js(r"""
+const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
+const button = buttons.find((node) => {
+    const rect = node.getBoundingClientRect();
+    const text = String(node.innerText || '').replace(/\s+/g, '').toLowerCase();
+    return rect.width > 0 && rect.height > 0 && !node.disabled && node.getAttribute('aria-disabled') !== 'true'
+        && (node.dataset.testid === 'continue-with-email' || /^(使用邮箱登录|使用电子邮件登录|loginwithemail|signinwithemail|continuewithemail)$/.test(text));
+});
+if (!button) return false;
+button.click();
+return true;
+        """)
+        if clicked:
+            break
+        time.sleep(0.25)
+    else:
+        raise RegistrationStageError("登录现有账户", "现有账户页面未提供使用邮箱登录入口")
+
+    _submit_email_address(email, login=True)
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        try:
+            if _check_email_submission():
+                break
+            clicked = page.run_js(
+                r"""
+const email = arguments[0];
+const input = document.querySelector('input[data-testid="email"], input[name="email"], input[type="email"]');
+if (!input || String(input.value || '').trim().toLowerCase() !== email.toLowerCase()) return false;
+const button = document.querySelector('button[data-testid="sign-in-email-code"]');
+if (!button || button.disabled || button.getAttribute('aria-disabled') === 'true' || !button.getBoundingClientRect().width) return false;
+button.click();
+return true;
+            """,
+                email,
+            )
+            if clicked:
+                _wait_for_email_submission(30)
+                break
+        except PageDisconnectedError:
+            refresh_active_page()
+        time.sleep(0.25)
+    else:
+        raise RegistrationStageError("登录现有账户", "未进入邮箱验证码登录页面，可能需要密码或其他登录方式")
+
+    # 同一收件箱仍保留注册邮件，登录时必须等待新的验证码。
+    fill_code_and_submit(email, dev_token, timeout=timeout, login=True, ignored_codes={signup_code})
+
+
 def getTurnstileToken():
+    token = page.run_js("""
+const input = document.querySelector('input[name="cf-turnstile-response"]');
+return input ? String(input.value || '').trim() : '';
+    """)
+    if token:
+        return token
     page.run_js("try { turnstile.reset() } catch(e) { }")
     for _ in range(15):
         try:
-            turnstileResponse = page.run_js("try { return turnstile.getResponse() } catch(e) { return null }")
+            turnstileResponse = page.run_js("""
+const input = document.querySelector('input[name="cf-turnstile-response"]');
+if (input?.value) return input.value;
+try { return turnstile.getResponse() } catch(e) { return null; }
+            """)
             if turnstileResponse:
                 return turnstileResponse
             challengeSolution = page.ele("@name=cf-turnstile-response")
@@ -705,6 +826,28 @@ Object.defineProperty(MouseEvent.prototype, 'screenY', { value: screenY });
             pass
         time.sleep(1)
     raise Exception("failed to solve turnstile")
+
+
+def ensure_turnstile_ready():
+    state = page.run_js("""
+const input = document.querySelector('input[name="cf-turnstile-response"]');
+return !input ? 'not-found' : String(input.value || '').trim() ? 'ready' : 'pending';
+    """)
+    if state != "pending":
+        return
+    logger.info("检测到人机验证，使用现有 Turnstile 交互流程。")
+    token = getTurnstileToken()
+    page.run_js(
+        """
+const input = document.querySelector('input[name="cf-turnstile-response"]');
+if (!input || input.value) return;
+const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+if (setter) setter.call(input, arguments[0]); else input.value = arguments[0];
+input.dispatchEvent(new Event('input', { bubbles: true }));
+input.dispatchEvent(new Event('change', { bubbles: true }));
+        """,
+        token,
+    )
 
 
 def extract_verification_code(content: str) -> Optional[str]:
@@ -740,9 +883,10 @@ def extract_verification_code(content: str) -> Optional[str]:
     return None
 
 
-def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 120) -> Optional[str]:
+def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 120, *, ignored_codes=None) -> Optional[str]:
     start = time.time()
     seen_ids = set()
+    ignored_codes = {str(code).replace("-", "").upper() for code in (ignored_codes or ())}
     while time.time() - start < timeout:
         _check_email_submission()
         messages = mail_provider.fetch_emails(mail_token) or []
@@ -762,7 +906,7 @@ def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 12
             ).strip()
             if direct_content:
                 code = extract_verification_code(direct_content)
-                if code:
+                if code and code.replace("-", "").upper() not in ignored_codes:
                     logger.info("从邮件列表提取到验证码: {}", code)
                     return code.replace("-", "")
 
@@ -782,7 +926,7 @@ def wait_for_verification_code(mail_provider, mail_token: str, timeout: int = 12
                 ]
             ).strip()
             code = extract_verification_code(content)
-            if code:
+            if code and code.replace("-", "").upper() not in ignored_codes:
                 logger.info("从邮箱提取到验证码: {}", code)
                 return code.replace("-", "")
         time.sleep(3)
@@ -800,7 +944,6 @@ def build_profile():
 def fill_profile_and_submit(timeout=30):
     given_name, family_name, password = build_profile()
     deadline = time.time() + timeout
-    turnstile_token = ""
     while time.time() < deadline:
         filled = page.run_js(
             """
@@ -861,30 +1004,7 @@ return [
         if filled != "filled":
             time.sleep(0.5)
             continue
-        turnstile_state = page.run_js(
-            """
-const challengeInput = document.querySelector('input[name="cf-turnstile-response"]');
-if (!challengeInput) return 'not-found';
-const value = String(challengeInput.value || '').trim();
-return value ? 'ready' : 'pending';
-            """
-        )
-        if turnstile_state == "pending" and not turnstile_token:
-            turnstile_token = getTurnstileToken()
-            if turnstile_token:
-                page.run_js(
-                    """
-const token = arguments[0];
-const challengeInput = document.querySelector('input[name="cf-turnstile-response"]');
-if (!challengeInput) return false;
-const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-if (nativeSetter) nativeSetter.call(challengeInput, token); else challengeInput.value = token;
-challengeInput.dispatchEvent(new Event('input', { bubbles: true }));
-challengeInput.dispatchEvent(new Event('change', { bubbles: true }));
-return true;
-                    """,
-                    turnstile_token,
-                )
+        ensure_turnstile_ready()
         time.sleep(1.2)
         try:
             submit_button = (
@@ -970,6 +1090,30 @@ return matches.slice(0, 30);
     raise Exception("登录后未提取到可见数字文本")
 
 
+def _check_login_requirements():
+    url = str(page.url).split("?", 1)[0].rstrip("/")
+    if url.endswith("/mfa/verify"):
+        raise RegistrationStageError("登录现有账户", "检测到 MFA 第二因素验证，本轮登录失败，终止当前任务")
+    if url.endswith("/accept-tos"):
+        raise RegistrationStageError("登录现有账户", "账户要求确认服务条款，邮箱验证码登录尚未完成")
+
+
+def _read_sso_cookie():
+    names = set()
+    for item in page.cookies(all_domains=True, all_info=True) or []:
+        if isinstance(item, dict):
+            name = str(item.get("name", "")).strip()
+            value = str(item.get("value", "")).strip()
+        else:
+            name = str(getattr(item, "name", "")).strip()
+            value = str(getattr(item, "value", "")).strip()
+        if name:
+            names.add(name)
+        if name == "sso" and value:
+            return value, names
+    return "", names
+
+
 def wait_for_sso_cookie(timeout=30):
     deadline = time.time() + timeout
     last_seen_names = set()
@@ -979,25 +1123,20 @@ def wait_for_sso_cookie(timeout=30):
             if page is None:
                 time.sleep(1)
                 continue
-            cookies = page.cookies(all_domains=True, all_info=True) or []
-            for item in cookies:
-                if isinstance(item, dict):
-                    name = str(item.get("name", "")).strip()
-                    value = str(item.get("value", "")).strip()
-                else:
-                    name = str(getattr(item, "name", "")).strip()
-                    value = str(getattr(item, "value", "")).strip()
-                if name:
-                    last_seen_names.add(name)
-                if name == "sso" and value:
-                    logger.info("注册完成后已获取到 sso cookie。")
-                    return value
+            _check_login_requirements()
+            value, names = _read_sso_cookie()
+            last_seen_names.update(names)
+            if value:
+                logger.info("账户认证完成，已获取到 sso cookie。")
+                return value
         except PageDisconnectedError:
             refresh_active_page()
+        except RegistrationStageError:
+            raise
         except Exception:
             pass
         time.sleep(1)
-    raise Exception(f"注册完成后未获取到 sso cookie，当前已见 cookie: {sorted(last_seen_names)}")
+    raise Exception(f"账户认证后未获取到 sso cookie，当前已见 cookie: {sorted(last_seen_names)}")
 
 
 def append_sso_to_txt(sso_value, output_path):
@@ -1014,21 +1153,28 @@ def append_sso_to_txt(sso_value, output_path):
 def run_single_registration(output_path, extract_numbers=False):
     run_stage("打开注册页", open_signup_page)
     email, dev_token = run_stage("提交邮箱", fill_email_and_submit)
-    run_stage("提交验证码", fill_code_and_submit, email, dev_token)
-    profile = run_stage("提交注册资料", fill_profile_and_submit)
+    signup_code = run_stage("提交验证码", fill_code_and_submit, email, dev_token)
+    account_state = run_stage("确认账户状态", _wait_for_signup_result)
+    if account_state == "exist_account":
+        run_stage("登录现有账户", login_existing_account, email, dev_token, signup_code)
+        profile = {}
+    else:
+        profile = run_stage("提交注册资料", fill_profile_and_submit)
     sso_value = run_stage("获取 sso", wait_for_sso_cookie)
     append_sso_to_txt(sso_value, output_path)
     if extract_numbers:
         extract_visible_numbers()
-    result = {"email": email, "sso": sso_value, **profile}
-    logger.info(
-        "注册成功 | email={} | password={} | given={} | family={}",
-        email,
-        profile.get("password", ""),
-        profile.get("given_name", ""),
-        profile.get("family_name", ""),
-    )
-    logger.info("注册完成: {}", email)
+    result = {"email": email, "sso": sso_value, "exist_account": account_state == "exist_account", **profile}
+    if result["exist_account"]:
+        logger.info("现有账户登录成功 | email={}", email)
+    else:
+        logger.info(
+            "注册成功 | email={} | password={} | given={} | family={}",
+            email,
+            profile.get("password", ""),
+            profile.get("given_name", ""),
+            profile.get("family_name", ""),
+        )
     return result
 
 
