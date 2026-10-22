@@ -2,16 +2,16 @@
 concurrency: 1
 # 一批注册账号数
 total_accounts: 1
-# 代理（国外)
-proxy: "http://127.0.0.1:7890"
 # 注册成功账号保存路径
 token_dir: "~/.ai-register/token_dir"
 
 model_provider: "openai"  # 可选，与 model_providers 一致
 model_providers:
   grok:
+    # 支持无认证代理或 http(s)://username:password@host:port；特殊字符需 URL 编码
     browser_proxy: "http://127.0.0.1:7890"
   openai:
+    proxy: ""  # OpenAI 注册和 OAuth 代理，留空直连
     # 一般不修改
     enable_oauth: true
     oauth_required: true
@@ -22,6 +22,7 @@ model_providers:
 mail_provider: "tempmail"  # 可选，与 mail_providers 一致
 mail_providers:
   duckmail:
+    proxy: ""  # 留空直连
     # 见：https://www.duckmail.sbs/cn/api-docs
     api_base: "https://api.duckmail.sbs"
     bearer: "<YOUR_DUCKMAIL_BEARER>"
@@ -39,14 +40,14 @@ mail_providers:
     ttl_seconds: 3600  # 需在所选上游支持的有效期内
     create_timeout: 120  # 等待异步创建完成的秒数
     poll_interval: 1  # 创建状态查询间隔（秒）
-    proxy: ""  # 默认直连，不继承全局或环境代理；需要时单独配置
+    proxy: ""  # 留空直连，需要时单独配置
 
 cpa:
   # 是否上传到 CPA 见：https://github.com/router-for-me/CLIProxyAPI
   enable: false
   api_url: "http://localhost:8317/v0/management/auth-files"
   token: "<YOUR_CPA_TOKEN>"
-  use_proxy: false  # 是否在上传时强制使用全局 `proxy` 配置
+  proxy: ""  # CPA 上传代理，留空直连
 
 g2a:
   # 是否上传到 grok2api（新版 3.0 go 版），见：https://github.com/chenyme/grok2api
@@ -56,4 +57,4 @@ g2a:
   # 管理员账号密码
   admin_username: "admin"
   admin_password: "your-password"
-  use_proxy: false  # 是否在上传时强制使用全局 `proxy` 配置
+  proxy: ""  # Grok2API 登录和上传代理，留空直连

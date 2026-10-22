@@ -12,6 +12,7 @@ REGISTER_CONFIG_DEFAULTS = {
             "browser_proxy": "",
         },
         "openai": {
+            "proxy": "",
             "enable_oauth": True,
             "oauth_required": True,
             "oauth_issuer": "https://auth.openai.com",
@@ -22,24 +23,24 @@ REGISTER_CONFIG_DEFAULTS = {
     "mail_provider": "duckmail",
     "mail_providers": {
         "duckmail": {
+            "proxy": "",
             "api_base": "https://api.duckmail.sbs",
             "bearer": "",
         }
     },
-    "proxy": "",
     "token_dir": "token_dir",
     "cpa": {
         "enable": False,
         "api_url": "",
         "token": "",
-        "use_proxy": False,
+        "proxy": "",
     },
     "g2a": {
         "enable": False,
         "api_url": "",
         "admin_username": "",
         "admin_password": "",
-        "use_proxy": False,
+        "proxy": "",
     },
 }
 
@@ -49,7 +50,6 @@ REGISTER_ENV_KEY_MAPPING = {
     "total_accounts": "TOTAL_ACCOUNTS",
     "model_provider": "MODEL_PROVIDER",
     "mail_provider": "MAIL_PROVIDER",
-    "proxy": "PROXY",
     # 模型配置环境变量（映射到 model_providers.<model_provider>）
     "model_enable_oauth": "MODEL_ENABLE_OAUTH",
     "model_oauth_required": "MODEL_OAUTH_REQUIRED",
@@ -60,12 +60,20 @@ REGISTER_ENV_KEY_MAPPING = {
     "cpa_enable": "CPA_ENABLE",
     "cpa_api_url": "CPA_API_URL",
     "cpa_token": "CPA_TOKEN",
-    "cpa_use_proxy": "CPA_USE_PROXY",
+    "cpa_proxy": "CPA_PROXY",
     "g2a_enable": "G2A_ENABLE",
     "g2a_api_url": "G2A_API_URL",
     "g2a_admin_username": "G2A_ADMIN_USERNAME",
     "g2a_admin_password": "G2A_ADMIN_PASSWORD",
-    "g2a_use_proxy": "G2A_USE_PROXY",
+    "g2a_proxy": "G2A_PROXY",
+}
+
+PROVIDER_PROXY_ENV_MAPPING = {
+    "OPENAI_PROXY": ("model_providers", "openai", "proxy"),
+    "GROK_BROWSER_PROXY": ("model_providers", "grok", "browser_proxy"),
+    "DUCKMAIL_PROXY": ("mail_providers", "duckmail", "proxy"),
+    "TEMPMAIL_PROXY": ("mail_providers", "tempmail", "proxy"),
+    "TEMPMAIL_HUB_PROXY": ("mail_providers", "tempmail_hub", "proxy"),
 }
 
 
@@ -127,6 +135,13 @@ def load_register_config(config_path, logger=None):
     if not isinstance(config.get("model_providers"), dict):
         config["model_providers"] = {}
 
+    for env_key, (section, name, field) in PROVIDER_PROXY_ENV_MAPPING.items():
+        providers = config[section] = dict(config[section])
+        settings = providers.get(name)
+        settings = dict(settings) if isinstance(settings, dict) else {}
+        settings[field] = str(os.environ.get(env_key, settings.get(field)) or "").strip()
+        providers[name] = settings
+
     model_name = config["model_provider"]
     model_cfg = config["model_providers"].get(model_name)
     if not isinstance(model_cfg, dict):
@@ -134,7 +149,7 @@ def load_register_config(config_path, logger=None):
 
     # 规范化 Model 配置: 结构为 model_providers.<provider>。
     if model_name == "grok":
-        model_cfg["browser_proxy"] = str(model_cfg.get("browser_proxy") or config.get("proxy") or "").strip()
+        model_cfg["browser_proxy"] = str(model_cfg.get("browser_proxy") or "").strip()
         model_cfg["api_endpoint"] = str(model_cfg.get("api_endpoint") or "").strip()
         model_cfg["api_token"] = str(model_cfg.get("api_token") or "").strip()
         model_cfg["api_append"] = parse_bool(model_cfg.get("api_append", True), True)
@@ -147,7 +162,9 @@ def load_register_config(config_path, logger=None):
         )
         model_oauth_issuer = config.get("model_oauth_issuer") or model_cfg.get("oauth_issuer") or "https://auth.openai.com"
         model_oauth_client_id = config.get("model_oauth_client_id") or model_cfg.get("oauth_client_id") or "app_EMoamEEZ73f0CkXaXp7hrann"
-        model_oauth_redirect_uri = config.get("model_oauth_redirect_uri") or model_cfg.get("oauth_redirect_uri") or "http://localhost:1455/auth/callback"
+        model_oauth_redirect_uri = (
+            config.get("model_oauth_redirect_uri") or model_cfg.get("oauth_redirect_uri") or "http://localhost:1455/auth/callback"
+        )
 
         model_cfg["enable_oauth"] = parse_bool(model_enable_oauth_raw, True)
         model_cfg["oauth_required"] = parse_bool(model_oauth_required_raw, True)
@@ -164,12 +181,12 @@ def load_register_config(config_path, logger=None):
     cpa_enable_raw = config.get("cpa_enable") if config.get("cpa_enable") is not None else cpa_cfg.get("enable", False)
     cpa_api_url = config.get("cpa_api_url") or cpa_cfg.get("api_url") or ""
     cpa_token = config.get("cpa_token") or cpa_cfg.get("token") or ""
-    cpa_use_proxy_raw = config.get("cpa_use_proxy") if config.get("cpa_use_proxy") is not None else cpa_cfg.get("use_proxy", False)
+    cpa_proxy = config.get("cpa_proxy") if config.get("cpa_proxy") is not None else cpa_cfg.get("proxy", "")
     config["cpa"] = {
         "enable": parse_bool(cpa_enable_raw, False),
         "api_url": str(cpa_api_url).strip(),
         "token": str(cpa_token).strip(),
-        "use_proxy": parse_bool(cpa_use_proxy_raw, False),
+        "proxy": str(cpa_proxy or "").strip(),
     }
 
     g2a_cfg = config.get("g2a")
@@ -180,13 +197,13 @@ def load_register_config(config_path, logger=None):
     g2a_api_url = config.get("g2a_api_url") or g2a_cfg.get("api_url") or ""
     g2a_admin_username = config.get("g2a_admin_username") or g2a_cfg.get("admin_username") or ""
     g2a_admin_password = config.get("g2a_admin_password") or g2a_cfg.get("admin_password") or ""
-    g2a_use_proxy_raw = config.get("g2a_use_proxy") if config.get("g2a_use_proxy") is not None else g2a_cfg.get("use_proxy", False)
+    g2a_proxy = config.get("g2a_proxy") if config.get("g2a_proxy") is not None else g2a_cfg.get("proxy", "")
     config["g2a"] = {
         "enable": parse_bool(g2a_enable_raw, False),
         "api_url": str(g2a_api_url).strip(),
         "admin_username": str(g2a_admin_username).strip(),
         "admin_password": str(g2a_admin_password),
-        "use_proxy": parse_bool(g2a_use_proxy_raw, False),
+        "proxy": str(g2a_proxy or "").strip(),
     }
 
     # 规范化 Token 存储目录。

@@ -2,6 +2,7 @@ from util import config as config_utils
 from util import get_logger, setup_logger
 from util import mail as mail_utils
 from util import model as model_utils
+from util.browser_proxy import redact_proxy
 
 setup_logger()
 logger = get_logger("main")
@@ -23,7 +24,9 @@ def main():
 
     logger.info(f"配置并发: {config['concurrency']}")
     logger.info(f"配置总数: {config['total_accounts']}")
-    logger.info(f"配置代理: {config['proxy'] or '无'}")
+    model_settings = config["model_providers"].get(model_info["name"], {})
+    model_proxy = model_settings.get("browser_proxy" if model_info["name"] == "grok" else "proxy")
+    logger.info(f"模型代理: {redact_proxy(model_proxy) or '直连'}")
     logger.info(f"模型 provider: {model_info['name']}")
     logger.info(f"邮箱 provider: {mail_info['name']} {mail_info['api_base']}")
 
@@ -31,7 +34,6 @@ def main():
     provider.run_batch(
         total_accounts=config.get("total_accounts"),
         max_workers=config.get("concurrency"),
-        proxy=config.get("proxy"),
     )
 
 

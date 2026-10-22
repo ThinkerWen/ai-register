@@ -79,7 +79,7 @@ class OpenAIModelProvider(ModelProvider):
         config = config_utils.get_register_config(logger=logger)
         resolved_total_accounts = int(total_accounts) if total_accounts is not None else int(config.get("total_accounts") or 0)
         resolved_max_workers = int(max_workers) if max_workers is not None else int(config.get("concurrency") or 1)
-        resolved_proxy = str(proxy) if proxy is not None else str(config.get("proxy") or "")
+        resolved_proxy = str((config.get("model_providers", {}).get("openai") or {}).get("proxy") or "")
         return run_batch(
             total_accounts=resolved_total_accounts,
             max_workers=resolved_max_workers,
@@ -498,7 +498,6 @@ def _save_codex_tokens(email: str, tokens: Optional[dict[str, Any]]):
     cpa_utils.upload_token_json_from_config(
         filepath=token_path,
         config=_CONFIG,
-        proxy=_cfg("proxy"),
         logger=lambda msg: logger.info(msg),
     )
 
@@ -543,11 +542,10 @@ class ChatGPTRegister:
             self.sec_ch_ua,
         ) = _random_chrome_version()
 
-        self.session = cast(Any, curl_requests.Session(impersonate=cast(Any, self.impersonate)))
+        self.session = cast(Any, curl_requests.Session(impersonate=cast(Any, self.impersonate), trust_env=False))
 
-        self.proxy = proxy
-        if self.proxy:
-            self.session.proxies = {"http": self.proxy, "https": self.proxy}
+        self.proxy = proxy or ""
+        self.session.proxies = {"http": self.proxy, "https": self.proxy}
 
         self.session.headers.update(
             {
@@ -576,7 +574,6 @@ class ChatGPTRegister:
         self.mail_provider = mail_utils.create_mail_provider(
             _CONFIG,
             user_agent=self.ua,
-            proxy=self.proxy,
             impersonate=cast(Any, self.impersonate),
             password_generator=_generate_password,
         )
@@ -1611,8 +1608,7 @@ def run_batch(
         total_accounts = _cfg("total_accounts")
     if max_workers is None:
         max_workers = _cfg("concurrency")
-    if proxy is None:
-        proxy = _cfg("proxy")
+    proxy = ((_CONFIG.get("model_providers") or {}).get("openai") or {}).get("proxy") or ""
 
     total_accounts = int(total_accounts)
     max_workers = int(max_workers)

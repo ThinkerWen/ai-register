@@ -30,13 +30,13 @@ def _parse_g2a_config(config):
     api_url = str(g2a_cfg.get("api_url") or "").strip()
     admin_username = str(g2a_cfg.get("admin_username") or "").strip()
     admin_password = str(g2a_cfg.get("admin_password") or "")
-    use_proxy = bool(g2a_cfg.get("use_proxy", False))
+    proxy = str(g2a_cfg.get("proxy") or "").strip()
     return {
         "enabled": enabled,
         "api_url": api_url,
         "admin_username": admin_username,
         "admin_password": admin_password,
-        "use_proxy": use_proxy,
+        "proxy": proxy,
     }
 
 
@@ -65,10 +65,8 @@ def _normalize_sso_token(raw_token):
     return token
 
 
-def _build_proxies(proxy, use_proxy_pref):
-    if proxy and use_proxy_pref:
-        return {"http": str(proxy), "https": str(proxy)}
-    return {}
+def _build_proxies(proxy):
+    return {"http": proxy or "", "https": proxy or ""}
 
 
 def _log(logger, message):
@@ -134,14 +132,15 @@ def _get_admin_token(api_base, username, password, proxies, force=False):
             return _admin_token
         endpoint = api_base + "/auth/login"
         try:
-            response = curl_requests.post(
-                endpoint,
-                headers={"Content-Type": "application/json"},
-                json={"username": username, "password": password},
-                timeout=60,
-                proxies=proxies,
-                verify=True,
-            )
+            with curl_requests.Session(trust_env=False) as session:
+                response = session.post(
+                    endpoint,
+                    headers={"Content-Type": "application/json"},
+                    json={"username": username, "password": password},
+                    timeout=60,
+                    proxies=proxies,
+                    verify=True,
+                )
         except Exception as exc:
             raise RemoteTokenRequestError(f"新版 grok2api 管理员登录请求失败: {endpoint}: {exc}") from exc
         status = int(getattr(response, "status_code", 0) or 0)
@@ -218,17 +217,18 @@ def _upload_go_remote(tokens, cfg, proxies, logger=None):
             data=payload.encode("utf-8"),
         )
         try:
-            response = curl_requests.post(
-                endpoint,
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Accept": "text/event-stream",
-                },
-                multipart=multipart,
-                timeout=60,
-                proxies=proxies,
-                verify=True,
-            )
+            with curl_requests.Session(trust_env=False) as session:
+                response = session.post(
+                    endpoint,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Accept": "text/event-stream",
+                    },
+                    multipart=multipart,
+                    timeout=60,
+                    proxies=proxies,
+                    verify=True,
+                )
         except Exception as exc:
             raise RemoteTokenRequestError(f"新版 grok2api SSO 导入请求失败: {endpoint}: {exc}") from exc
         finally:
@@ -272,9 +272,7 @@ def upload_sso_tokens(tokens, config, proxy=None, logger=None):
     if not tokens_to_push:
         return False
 
-    proxies = _build_proxies(proxy, cfg["use_proxy"])
-    if proxy and not cfg["use_proxy"]:
-        _log(logger, "[G2A] use_proxy=false，上传请求已绕过全局代理")
+    proxies = _build_proxies(cfg["proxy"])
 
     _log(logger, f"[G2A] 开始上传 {len(tokens_to_push)} 个 token 到 grok2api...")
     try:

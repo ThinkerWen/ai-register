@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import requests
 
+from util.logger import get_logger
 from util.providers.base import MailProvider, MailProviderError
 
 
@@ -73,6 +74,9 @@ class TempMailHubProvider(MailProvider):
         if not operation_id:
             raise MailProviderError("Temp Mail Hub 创建响应缺少操作 id")
         endpoint = f"/v1/operations/{quote(str(operation_id), safe='')}"
+        retry_delay = 1
+        delay = self.poll_interval
+        last_error = None
         while True:
             status = operation.get("status")
             if status == "succeeded":
@@ -88,13 +92,34 @@ class TempMailHubProvider(MailProvider):
             if status not in {"pending", "running"}:
                 raise MailProviderError(f"Temp Mail Hub 未知操作状态: {status}")
             remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise MailProviderError(f"Temp Mail Hub 创建邮箱超时 (操作 {operation_id})，请检查 Worker 是否运行")
-            time.sleep(min(self.poll_interval, remaining))
+            if remaining > 0:
+                time.sleep(min(delay, remaining))
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise MailProviderError(f"Temp Mail Hub 创建邮箱超时 (操作 {operation_id})，请检查 Worker 是否运行")
-            operation = self._request("GET", endpoint, timeout=min(30, remaining))
+                detail = f"；最后一次查询失败: {last_error}" if last_error else "，请检查 Worker 是否运行"
+                raise MailProviderError(f"Temp Mail Hub 创建邮箱超时 (操作 {operation_id}){detail}") from last_error
+            try:
+                operation = self._request("GET", endpoint, timeout=min(30, remaining))
+            except MailProviderError as exc:
+                if not isinstance(exc.__cause__, (requests.Timeout, requests.ConnectionError)):
+                    raise
+                # 查询可安全重试；保留操作 ID，避免重复提交创建请求。
+                last_error = exc
+                delay = retry_delay
+                retry_delay = min(retry_delay + 1, 4)
+                remaining = max(0, deadline - time.monotonic())
+                if remaining > delay:
+                    get_logger("tempmail_hub").warning(
+                        "操作状态查询遇到 {}，将在 {:.1f}s 后重试同一操作 {}（剩余 {:.1f}s）",
+                        type(exc.__cause__).__name__,
+                        delay,
+                        operation_id,
+                        remaining,
+                    )
+                continue
+            last_error = None
+            retry_delay = 1
+            delay = self.poll_interval
 
     @staticmethod
     def _normalize_message(message):

@@ -1,0 +1,16 @@
+# Only application sources and dependency manifests enter the build context.
+**
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!uv.lock
+!main.py
+!config.example.yaml
+!register/
+!register/**
+!util/
+!util/**
+**/__pycache__/
+**/*.py[cod]
+**/*.log
+**/token_dir/

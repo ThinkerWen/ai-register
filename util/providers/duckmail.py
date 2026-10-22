@@ -25,6 +25,7 @@ def default_generate_password(length=14):
 
 def create_duckmail_session(user_agent=None, proxy=None):
     session = requests.Session()
+    session.trust_env = False
     session.headers.update(
         {
             "User-Agent": user_agent or "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -38,10 +39,8 @@ def create_duckmail_session(user_agent=None, proxy=None):
 
 
 def request_duckmail(method, url, *, user_agent=None, proxy=None, timeout=_DUCKMAIL_TIMEOUT, **kwargs):
-    """DuckMail 请求包装：先走代理，失败后自动回退直连，并进行轻量重试。"""
+    """按配置的代理路由请求，并进行轻量重试。"""
     route_proxies = [proxy]
-    if proxy:
-        route_proxies.append(None)
 
     last_exc = None
     for route_proxy in route_proxies:

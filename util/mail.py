@@ -42,6 +42,7 @@ def create_mail_provider(config, *, user_agent=None, proxy=None, impersonate="ch
         raise MailProviderError(f"不支持的 mail_provider: {provider_name} (可选: {available})")
 
     provider_cfg = _resolve_provider_settings(config, provider_name)
+    proxy = str(provider_cfg.get("proxy") or "").strip() or None
     if provider_name == "duckmail":
         api_base = provider_cfg.get("api_base")
         bearer = provider_cfg.get("bearer")
@@ -59,12 +60,11 @@ def create_mail_provider(config, *, user_agent=None, proxy=None, impersonate="ch
         )
 
     if provider_name == "tempmail":
-        tempmail_proxy = provider_cfg.get("proxy") or proxy
         return provider_cls(
             api_key=provider_cfg.get("api_key"),
             domain=provider_cfg.get("domain"),
             prefix=provider_cfg.get("prefix"),
-            proxy=tempmail_proxy,
+            proxy=proxy,
             user_agent=user_agent,
             impersonate=impersonate,
         )
@@ -103,7 +103,7 @@ def get_mail_provider_info(config):
 
 def validate_mail_provider_config(config):
     try:
-        create_mail_provider(config, user_agent="Mozilla/5.0", proxy=config.get("proxy"))
+        create_mail_provider(config, user_agent="Mozilla/5.0")
         return True, "ok"
     except Exception as e:
         return False, str(e)

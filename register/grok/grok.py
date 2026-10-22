@@ -14,13 +14,14 @@ from glob import glob
 from typing import Optional
 
 from DrissionPage import Chromium, ChromiumOptions
-from DrissionPage.errors import PageDisconnectedError
+from DrissionPage.errors import ContextLostError, PageDisconnectedError
 
 from register.base import ModelProvider, random_name
 from util import config as config_utils
 from util import g2a as g2a_utils
 from util import get_logger, setup_logger
 from util import mail as mail_utils
+from util.browser_proxy import BrowserProxy
 
 setup_logger()
 logger = get_logger("grok")
@@ -61,6 +62,9 @@ def _get_page():
 
 
 def _set_page(value):
+    proxy = getattr(_thread_state, "browser_proxy", None)
+    if value is not None and proxy is not None:
+        proxy.attach(value)
     _thread_state.page = value
 
 
@@ -129,8 +133,6 @@ class GrokModelProvider(ModelProvider):
             max_workers = int(config.get("concurrency") or 1)
         else:
             max_workers = int(max_workers)
-        if proxy is None:
-            proxy = str(config.get("proxy") or "")
 
         output_path = _default_sso_file(config)
         logger.info(
@@ -235,9 +237,10 @@ def warn_runtime_compatibility():
 
 
 def _create_chromium_options():
-    config = _get_config()
     provider_cfg = _get_provider_cfg()
-    browser_proxy = str(provider_cfg.get("browser_proxy") or config.get("proxy") or "").strip()
+    browser_proxy = str(provider_cfg.get("browser_proxy") or "").strip()
+    proxy = BrowserProxy(browser_proxy)
+    _thread_state.browser_proxy = proxy
 
     options = ChromiumOptions()
     options.set_local_port(_pick_local_debug_port())
@@ -248,8 +251,10 @@ def _create_chromium_options():
     options.set_argument("--disable-dev-shm-usage")
     options.set_argument("--disable-software-rasterizer")
     if browser_proxy:
-        options.set_proxy(browser_proxy)
-        logger.info("浏览器代理: {}", browser_proxy)
+        options.set_proxy(proxy.server)
+        logger.info("浏览器代理: {} | 认证: {}", proxy.server, "启用" if proxy.username is not None else "无")
+    else:
+        options.set_argument("--no-proxy-server")
 
     if platform.system() == "Linux":
         playwright_chromes = glob(os.path.expanduser("~/.cache/ms-playwright/chromium-*/chrome-linux*/chrome"))
@@ -298,14 +303,18 @@ def start_browser():
     _ensure_virtual_display()
     co = _create_chromium_options()
     chrome_temp_dir = tempfile.mkdtemp(prefix="chrome_run_")
-    co.set_user_data_path(chrome_temp_dir)
-    browser_obj = Chromium(co)
-    tabs = browser_obj.get_tabs()
-    page_obj = tabs[-1] if tabs else browser_obj.new_tab()
     _set_chrome_temp_dir(chrome_temp_dir)
-    _set_browser(browser_obj)
-    _set_page(page_obj)
-    return browser_obj, page_obj
+    try:
+        co.set_user_data_path(chrome_temp_dir)
+        browser_obj = Chromium(co)
+        _set_browser(browser_obj)
+        tabs = browser_obj.get_tabs()
+        page_obj = tabs[-1] if tabs else browser_obj.new_tab()
+        _set_page(page_obj)
+        return browser_obj, page_obj
+    except Exception:
+        stop_browser()
+        raise
 
 
 def stop_browser():
@@ -318,6 +327,7 @@ def stop_browser():
             pass
     _set_browser(None)
     _set_page(None)
+    _thread_state.browser_proxy = None
     if chrome_temp_dir and os.path.isdir(chrome_temp_dir):
         shutil.rmtree(chrome_temp_dir, ignore_errors=True)
     _set_chrome_temp_dir("")
@@ -360,8 +370,9 @@ def open_signup_page():
         page.get(SIGNUP_URL)
     except Exception:
         refresh_active_page()
-        page_obj = _get_browser().new_tab(SIGNUP_URL)
+        page_obj = _get_browser().new_tab()
         _set_page(page_obj)
+        page_obj.get(SIGNUP_URL)
     click_email_signup_button()
 
 
@@ -386,9 +397,17 @@ return !!(givenInput && familyInput && passwordInput);
         return False
 
 
+def _run_js_during_navigation(script, *args):
+    """页面跳转销毁旧上下文时，交给调用方的限时轮询等待新页面。"""
+    try:
+        return page.run_js(script, *args)
+    except ContextLostError:
+        return None
+
+
 def has_existing_account():
     return bool(
-        page.run_js(r"""
+        _run_js_during_navigation(r"""
 const text = String(document.body?.innerText || '').replace(/\s+/g, ' ').trim();
 return /找到现有账户|找到现有帐号|existing account found|account already exists/i.test(text);
     """)
@@ -431,7 +450,7 @@ return true;
 
 
 def _check_email_submission():
-    state = page.run_js(r"""
+    state = _run_js_during_navigation(r"""
 const text = String(document.body?.innerText || '').replace(/\s+/g, ' ').trim();
 const error = text.match(/Your email address is invalid\. Please use a different email address\./i);
 if (error) return {error: error[0], ready: false};
@@ -443,6 +462,8 @@ function isVisible(node) {
 const inputs = Array.from(document.querySelectorAll('input[data-input-otp="true"], input[name="code"], input[autocomplete="one-time-code"], input[inputmode="numeric"], input[inputmode="text"], input[maxlength="1"]'));
 return {error: '', ready: inputs.some((node) => node.type !== 'email' && isVisible(node) && !node.disabled && !node.readOnly)};
     """)
+    if state is None:
+        return False
     if state.get("error"):
         raise RegistrationStageError("提交邮箱", f"邮箱被拒绝: {state['error']}")
     return bool(state.get("ready"))
@@ -465,7 +486,6 @@ def fill_email_and_submit(timeout=15):
     mail_provider = mail_utils.create_mail_provider(
         config,
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        proxy=str(config.get("proxy") or ""),
         impersonate="chrome131",
     )
     email, _password, dev_token = mail_provider.create_temp_email()
@@ -480,9 +500,12 @@ def fill_email_and_submit(timeout=15):
 def _submit_email_address(email, timeout=15, *, login=False):
     deadline = time.time() + timeout
     while time.time() < deadline:
-        filled = page.run_js(
+        if _check_email_submission():
+            return
+        filled = _run_js_during_navigation(
             """
 const email = arguments[0];
+const login = arguments[1];
 function isVisible(node) {
     if (!node) return false;
     const style = window.getComputedStyle(node);
@@ -490,7 +513,9 @@ function isVisible(node) {
     const rect = node.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
 }
-const input = Array.from(document.querySelectorAll('input[data-testid="email"], input[name="email"], input[type="email"], input[autocomplete="email"]')).find((node) => isVisible(node) && !node.disabled && !node.readOnly) || null;
+const inputs = Array.from(document.querySelectorAll('input[data-testid="email"], input[name="email"], input[type="email"], input[autocomplete="email"]'));
+if (login && inputs.some((node) => isVisible(node) && node.readOnly && node.value.trim().toLowerCase() === email.toLowerCase())) return 'submitted';
+const input = inputs.find((node) => isVisible(node) && !node.disabled && !node.readOnly) || null;
 if (!input) return 'not-ready';
 input.focus();
 input.click();
@@ -506,7 +531,10 @@ input.blur();
 return 'filled';
             """,
             email,
+            login,
         )
+        if filled == "submitted":
+            return
         if filled == "not-ready":
             time.sleep(0.5)
             continue
@@ -514,7 +542,7 @@ return 'filled';
             time.sleep(0.5)
             continue
         time.sleep(0.8)
-        clicked = page.run_js(
+        clicked = _run_js_during_navigation(
             r"""
 const login = arguments[0];
 function isVisible(node) {
@@ -551,7 +579,6 @@ def fill_code_and_submit(email, dev_token, timeout=120, *, login=False, ignored_
     mail_provider = mail_utils.create_mail_provider(
         config,
         user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        proxy=str(config.get("proxy") or ""),
         impersonate="chrome131",
     )
     code = wait_for_verification_code(mail_provider, dev_token, timeout=timeout, ignored_codes=ignored_codes)
@@ -634,7 +661,7 @@ return merged === code ? 'filled' : 'box-mismatch';
                 """,
                 code,
             )
-        except PageDisconnectedError:
+        except (ContextLostError, PageDisconnectedError):
             refresh_active_page()
             if login:
                 _check_login_requirements()
@@ -707,7 +734,7 @@ return 'clicked';
                     """,
                 login,
             )
-        except PageDisconnectedError:
+        except (ContextLostError, PageDisconnectedError):
             refresh_active_page()
             if login:
                 _check_login_requirements()
@@ -739,24 +766,40 @@ return 'clicked';
 def login_existing_account(email, dev_token, signup_code, timeout=120):
     logger.info("找到现有账户，切换邮箱登录 | email={}", email)
     deadline = time.monotonic() + 15
+    login_clicked = False
     while time.monotonic() < deadline:
-        clicked = page.run_js(r"""
+        state = _run_js_during_navigation(
+            r"""
+const loginClicked = arguments[0];
+function isVisible(node) {
+    const style = getComputedStyle(node);
+    const rect = node.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && rect.width > 0 && rect.height > 0;
+}
+if (location.pathname.replace(/\/$/, '') === '/sign-in') {
+    const input = document.querySelector('input[data-testid="email"], input[name="email"], input[type="email"]');
+    return input && isVisible(input) && !input.disabled && !input.readOnly ? 'ready' : 'waiting';
+}
+if (loginClicked) return 'waiting';
 const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
 const button = buttons.find((node) => {
-    const rect = node.getBoundingClientRect();
     const text = String(node.innerText || '').replace(/\s+/g, '').toLowerCase();
-    return rect.width > 0 && rect.height > 0 && !node.disabled && node.getAttribute('aria-disabled') !== 'true'
+    return isVisible(node) && !node.disabled && node.getAttribute('aria-disabled') !== 'true'
         && (node.dataset.testid === 'continue-with-email' || /^(使用邮箱登录|使用电子邮件登录|loginwithemail|signinwithemail|continuewithemail)$/.test(text));
 });
-if (!button) return false;
+if (!button) return 'waiting';
 button.click();
-return true;
-        """)
-        if clicked:
+return 'clicked';
+        """,
+            login_clicked,
+        )
+        if state == "ready":
             break
+        if state == "clicked":
+            login_clicked = True
         time.sleep(0.25)
     else:
-        raise RegistrationStageError("登录现有账户", "现有账户页面未提供使用邮箱登录入口")
+        raise RegistrationStageError("登录现有账户", "点击使用邮箱登录后，登录页面未在规定时间内就绪")
 
     _submit_email_address(email, login=True)
     deadline = time.monotonic() + 30
@@ -764,7 +807,7 @@ return true;
         try:
             if _check_email_submission():
                 break
-            clicked = page.run_js(
+            clicked = _run_js_during_navigation(
                 r"""
 const email = arguments[0];
 const input = document.querySelector('input[data-testid="email"], input[name="email"], input[type="email"]');
@@ -1225,7 +1268,6 @@ def _run_loop(total_accounts, output_path, extract_numbers=False, max_workers=No
                         g2a_utils.upload_sso_tokens(
                             [result["sso"]],
                             _get_config(),
-                            proxy=str(_get_config().get("proxy") or ""),
                             logger=logger.info,
                         )
                 except KeyboardInterrupt:

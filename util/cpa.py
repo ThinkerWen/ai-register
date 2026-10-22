@@ -1,5 +1,4 @@
 import os
-from urllib.parse import urlparse
 
 import requests
 
@@ -12,14 +11,15 @@ def _parse_cpa_config(config):
     enabled = bool(cpa.get("enable", False))
     api_url = str(cpa.get("api_url") or "").strip()
     token = str(cpa.get("token") or "").strip()
-    use_proxy = bool(cpa.get("use_proxy", False))
-    return enabled, api_url, token, use_proxy
+    proxy = str(cpa.get("proxy") or "").strip()
+    return enabled, api_url, token, proxy
 
 
 def should_upload(config):
     (
         enabled,
         api_url,
+        _,
         _,
     ) = _parse_cpa_config(config)
     return enabled and bool(api_url)
@@ -30,6 +30,7 @@ def validate_cpa_config(config):
         enabled,
         api_url,
         _,
+        _,
     ) = _parse_cpa_config(config)
     if not enabled:
         return True, "cpa disabled"
@@ -38,7 +39,7 @@ def validate_cpa_config(config):
     return True, "ok"
 
 
-def upload_token_json(filepath, upload_api_url, upload_api_token="", proxy=None, logger=None, force_use_proxy=False):
+def upload_token_json(filepath, upload_api_url, upload_api_token="", proxy=None, logger=None):
     """上传 Token JSON 文件到 CPA 管理平台"""
     if not upload_api_url:
         return False
@@ -46,12 +47,9 @@ def upload_token_json(filepath, upload_api_url, upload_api_token="", proxy=None,
     try:
         filename = os.path.basename(filepath)
         session = requests.Session()
-        host = (urlparse(upload_api_url).hostname or "").lower()
-        use_proxy = bool(proxy) and force_use_proxy
-        if use_proxy:
+        session.trust_env = False
+        if proxy:
             session.proxies = {"http": proxy, "https": proxy}
-        elif proxy and logger:
-            logger(f"[CPA] 检测到本地地址 {host}，上传请求已绕过代理")
 
         with open(filepath, "rb") as f:
             files = {"file": (filename, f, "application/json")}
@@ -79,7 +77,7 @@ def upload_token_json(filepath, upload_api_url, upload_api_token="", proxy=None,
 
 
 def upload_token_json_from_config(filepath, config, proxy=None, logger=None):
-    enabled, api_url, token, use_proxy = _parse_cpa_config(config)
+    enabled, api_url, token, proxy = _parse_cpa_config(config)
     if not enabled:
         return False
     if not api_url:
@@ -92,5 +90,4 @@ def upload_token_json_from_config(filepath, config, proxy=None, logger=None):
         upload_api_token=token,
         proxy=proxy,
         logger=logger,
-        force_use_proxy=bool(use_proxy),
     )

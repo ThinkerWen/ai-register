@@ -1,5 +1,4 @@
 import requests
-from TempMail import TempMail
 
 from util.providers.base import MailProvider, MailProviderError
 
@@ -14,7 +13,6 @@ class TempMailLolProvider(MailProvider):
         self.prefix = prefix or None
         self.proxy = proxy or None
         self.user_agent = user_agent or "TempMailPythonAPI/3.0"
-        self.client = TempMail(self.api_key)
 
     def _http_request(self, endpoint, method="GET", payload=None):
         url = f"https://api.tempmail.lol/v2{endpoint}"
@@ -29,10 +27,11 @@ class TempMailLolProvider(MailProvider):
         if self.proxy:
             proxies = {"http": self.proxy, "https": self.proxy}
 
-        if method == "POST":
-            response = requests.post(url, headers=headers, json=payload or {}, timeout=30, proxies=proxies)
-        else:
-            response = requests.get(url, headers=headers, timeout=30, proxies=proxies)
+        with requests.Session() as session:
+            session.trust_env = False
+            response = session.request(
+                method, url, headers=headers, json=payload if method == "POST" else None, timeout=30, proxies=proxies
+            )
 
         if response.status_code == 429:
             raise MailProviderError(f"TempMail Rate Limit: {response.text}")
@@ -43,7 +42,7 @@ class TempMailLolProvider(MailProvider):
 
         return response.json()
 
-    def _create_inbox_proxy_mode(self):
+    def _create_inbox(self):
         data = self._http_request(
             "/inbox/create",
             method="POST",
@@ -55,7 +54,7 @@ class TempMailLolProvider(MailProvider):
             raise MailProviderError("TempMail 返回结果缺少 address/token")
         return address, token
 
-    def _get_emails_proxy_mode(self, mail_token):
+    def _get_emails(self, mail_token):
         data = self._http_request(f"/inbox?token={mail_token}")
         if data.get("expired") is True:
             raise MailProviderError("Token Expired")
@@ -63,12 +62,7 @@ class TempMailLolProvider(MailProvider):
 
     def create_temp_email(self):
         try:
-            if self.proxy:
-                address, token = self._create_inbox_proxy_mode()
-            else:
-                inbox = self.client.createInbox(domain=self.domain, prefix=self.prefix)
-                address = getattr(inbox, "address", None)
-                token = getattr(inbox, "token", None)
+            address, token = self._create_inbox()
         except Exception as e:
             raise MailProviderError(f"TempMail 创建邮箱失败: {e}")
 
@@ -80,10 +74,7 @@ class TempMailLolProvider(MailProvider):
 
     def fetch_emails(self, mail_token):
         try:
-            if self.proxy:
-                emails = self._get_emails_proxy_mode(mail_token)
-            else:
-                emails = self.client.getEmails(mail_token)
+            emails = self._get_emails(mail_token)
         except Exception:
             return []
 

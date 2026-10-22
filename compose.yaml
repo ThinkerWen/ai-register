@@ -1,0 +1,20 @@
+name: ai-register
+
+services:
+  register:
+    image: designerwang/ai-register:latest
+    container_name: ai-register
+    restart: unless-stopped
+    shm_size: "1gb"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - type: bind
+        source: ./config.yaml
+        target: /app/config.yaml
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./token_dir
+        target: /data/tokens
