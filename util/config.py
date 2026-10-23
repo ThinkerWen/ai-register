@@ -11,6 +11,9 @@ REGISTER_CONFIG_DEFAULTS = {
         "grok": {
             "browser_proxy": "",
         },
+        "gonkarouter": {
+            "proxy": "",
+        },
         "openai": {
             "proxy": "",
             "enable_oauth": True,
@@ -42,6 +45,14 @@ REGISTER_CONFIG_DEFAULTS = {
         "admin_password": "",
         "proxy": "",
     },
+    "magpie": {
+        "enable": False,
+        "api_url": "",
+        "magpie_auth_token": "",
+        "id": "",
+        "name": "",
+        "proxy": "",
+    },
 }
 
 
@@ -66,6 +77,12 @@ REGISTER_ENV_KEY_MAPPING = {
     "g2a_admin_username": "G2A_ADMIN_USERNAME",
     "g2a_admin_password": "G2A_ADMIN_PASSWORD",
     "g2a_proxy": "G2A_PROXY",
+    "magpie_api_url": "MAGPIE_API_URL",
+    "magpie_enable": "MAGPIE_ENABLE",
+    "magpie_auth_token": "MAGPIE_AUTH_TOKEN",
+    "magpie_id": "MAGPIE_ID",
+    "magpie_name": "MAGPIE_NAME",
+    "magpie_proxy": "MAGPIE_PROXY",
 }
 
 PROVIDER_PROXY_ENV_MAPPING = {
@@ -74,6 +91,7 @@ PROVIDER_PROXY_ENV_MAPPING = {
     "DUCKMAIL_PROXY": ("mail_providers", "duckmail", "proxy"),
     "TEMPMAIL_PROXY": ("mail_providers", "tempmail", "proxy"),
     "TEMPMAIL_HUB_PROXY": ("mail_providers", "tempmail_hub", "proxy"),
+    "GONKAROUTER_PROXY": ("model_providers", "gonkarouter", "proxy"),
 }
 
 
@@ -153,6 +171,8 @@ def load_register_config(config_path, logger=None):
         model_cfg["api_endpoint"] = str(model_cfg.get("api_endpoint") or "").strip()
         model_cfg["api_token"] = str(model_cfg.get("api_token") or "").strip()
         model_cfg["api_append"] = parse_bool(model_cfg.get("api_append", True), True)
+    elif model_name == "gonkarouter":
+        model_cfg["proxy"] = str(model_cfg.get("proxy") or "").strip()
     else:
         model_enable_oauth_raw = (
             config.get("model_enable_oauth") if config.get("model_enable_oauth") is not None else model_cfg.get("enable_oauth", True)
@@ -204,6 +224,21 @@ def load_register_config(config_path, logger=None):
         "admin_username": str(g2a_admin_username).strip(),
         "admin_password": str(g2a_admin_password),
         "proxy": str(g2a_proxy or "").strip(),
+    }
+
+    magpie_cfg = config.get("magpie")
+    if not isinstance(magpie_cfg, dict):
+        magpie_cfg = {}
+    magpie_api_url = config.get("magpie_api_url") or magpie_cfg.get("api_url") or ""
+    magpie_auth_token = config.get("magpie_auth_token") or magpie_cfg.get("magpie_auth_token") or ""
+    magpie_enable_raw = config.get("magpie_enable") if config.get("magpie_enable") is not None else magpie_cfg.get("enable")
+    config["magpie"] = {
+        "enable": parse_bool(magpie_enable_raw, bool(magpie_api_url or magpie_auth_token)),
+        "api_url": str(magpie_api_url).strip().rstrip("/"),
+        "magpie_auth_token": str(magpie_auth_token).strip(),
+        "id": str(config.get("magpie_id") or magpie_cfg.get("id") or "").strip(),
+        "name": str(config.get("magpie_name") or magpie_cfg.get("name") or "").strip(),
+        "proxy": str(config.get("magpie_proxy") or magpie_cfg.get("proxy") or "").strip(),
     }
 
     # 规范化 Token 存储目录。

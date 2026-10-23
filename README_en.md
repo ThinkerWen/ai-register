@@ -4,7 +4,7 @@
 
 <h1 align="center">ai-register</h1>
 
-<p align="center">OpenAI / Grok batch registration · Email verification · Token storage and uploads</p>
+<p align="center">OpenAI / Grok / GonkaRouter batch registration · Email verification · Token storage and uploads</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white" alt="Python 3.9+" />
@@ -21,7 +21,7 @@
 
 ## Local setup
 
-Requires Python 3.9+ and uv. Grok also needs Chrome / Chromium, plus Xvfb on Linux without a desktop.
+Requires Python 3.9+ and uv. Grok and GonkaRouter also need Chrome / Chromium, plus Xvfb on Linux without a desktop.
 
 ```bash
 git clone https://github.com/ThinkerWen/ai-register.git
@@ -108,10 +108,15 @@ See [config.example.yaml](config.example.yaml) for all settings and credential f
 
 | Setting | Purpose |
 | --- | --- |
-| `model_provider` | `openai` / `grok` |
+| `model_provider` | `openai` / `grok` / `gonkarouter` |
 | `mail_provider` | Select a mail provider from the table above |
 | `total_accounts` / `concurrency` | Batch size / concurrent workers |
 | `token_dir` | Local output directory; supports `~` |
 | `model_providers.openai.*` | OpenAI OAuth and proxy settings |
 | `mail_providers.<name>.*` | Mail credentials and proxies |
 | `cpa.*` / `g2a.*` | Optional uploads to [CPA](https://github.com/router-for-me/CLIProxyAPI) / [Grok2API](https://github.com/chenyme/grok2api) |
+| `magpie.*` | Optional GonkaRouter key uploads to Magpie |
+
+GonkaRouter API keys are appended to `token_dir/gonkarouter/api_keys.txt`, one per line. Turnstile may not issue a token over a direct connection; configure a working proxy with `model_providers.gonkarouter.proxy`.
+
+When `magpie.enable` is `true` and `magpie.api_url`, `magpie.magpie_auth_token`, `magpie.id`, and `magpie.name` are set, each saved key is also uploaded to Magpie. Upload failures do not affect local storage. Set `magpie_auth_token` to the `magpie_web_3430` cookie value only.

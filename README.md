@@ -4,7 +4,7 @@
 
 <h1 align="center">ai-register</h1>
 
-<p align="center">OpenAI / Grok 批量注册 · 邮箱验证码 · Token 保存与上传</p>
+<p align="center">OpenAI / Grok / GonkaRouter 批量注册 · 邮箱验证码 · Token 保存与上传</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white" alt="Python 3.9+" />
@@ -21,7 +21,7 @@
 
 ## 本地运行
 
-需要 Python 3.9+ 和 uv。Grok 还需要 Chrome / Chromium；无桌面的 Linux 环境需要 Xvfb。
+需要 Python 3.9+ 和 uv。Grok、GonkaRouter 还需要 Chrome / Chromium；无桌面的 Linux 环境需要 Xvfb。
 
 ```bash
 git clone https://github.com/ThinkerWen/ai-register.git
@@ -108,10 +108,15 @@ tail -f token_dir/register.log
 
 | 配置项 | 用途 |
 | --- | --- |
-| `model_provider` | `openai` / `grok` |
+| `model_provider` | `openai` / `grok` / `gonkarouter` |
 | `mail_provider` | 选择上表中的邮箱服务 |
 | `total_accounts` / `concurrency` | 任务总数 / 并发数 |
 | `token_dir` | 本地输出目录，支持 `~` |
 | `model_providers.openai.*` | OpenAI OAuth 和代理 |
 | `mail_providers.<名称>.*` | 邮箱凭据和代理 |
 | `cpa.*` / `g2a.*` | 可选上传到 [CPA](https://github.com/router-for-me/CLIProxyAPI) / [Grok2API](https://github.com/chenyme/grok2api) |
+| `magpie.*` | 可选上传 GonkaRouter Key 到 Magpie |
+
+GonkaRouter 的 API Key 追加到 `token_dir/gonkarouter/api_keys.txt`，一行一个。Turnstile 在直连环境可能无法生成 token，请通过 `model_providers.gonkarouter.proxy` 配置可用代理。
+
+设置 `magpie.enable: true`，并填写 `magpie.api_url`、`magpie.magpie_auth_token`、`magpie.id` 和 `magpie.name` 后，Key 保存成功会同步上传到 Magpie；上传失败不会影响本地保存。`magpie_auth_token` 只填 `magpie_web_3430` 的 Cookie 值即可。

@@ -10,6 +10,8 @@ model_providers:
   grok:
     # 支持无认证代理或 http(s)://username:password@host:port；特殊字符需 URL 编码
     browser_proxy: "http://127.0.0.1:7890"
+  gonkarouter:
+    proxy: ""  # GonkaRouter 浏览器代理；Turnstile 通常需要可用代理
   openai:
     proxy: ""  # OpenAI 注册和 OAuth 代理，留空直连
     # 一般不修改
@@ -58,3 +60,11 @@ g2a:
   admin_username: "admin"
   admin_password: "your-password"
   proxy: ""  # Grok2API 登录和上传代理，留空直连
+
+magpie:
+  enable: false  # 开启后上传 GonkaRouter 的 Key
+  api_url: "http://127.0.0.1:3430"
+  magpie_auth_token: ""  # 只填 magpie_web_3430 的 Cookie 值
+  id: "r2a"
+  name: "register"
+  proxy: ""  # Magpie 上传代理，留空直连
