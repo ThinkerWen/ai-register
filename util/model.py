@@ -1,3 +1,4 @@
+from register.agnes import AgnesModelProvider
 from register.base import ModelProviderError
 from register.gonkarouter import GonkaRouterModelProvider
 from register.grok.grok import GrokModelProvider
@@ -6,6 +7,7 @@ from register.openai.openai import OpenAIModelProvider
 _PROVIDER_REGISTRY = {
     "grok": GrokModelProvider,
     "gonkarouter": GonkaRouterModelProvider,
+    "agnes": AgnesModelProvider,
     "openai": OpenAIModelProvider,
 }
 
@@ -55,6 +57,12 @@ def create_model_provider(config):
     if provider_name == "gonkarouter":
         return provider_cls(
             proxy=provider_cfg.get("proxy"),
+        )
+
+    if provider_name == "agnes":
+        return provider_cls(
+            proxy=provider_cfg.get("proxy"),
+            manual_captcha_timeout=provider_cfg.get("manual_captcha_timeout", 300),
         )
 
     raise ModelProviderError(f"provider 初始化未实现: {provider_name}")

@@ -14,6 +14,10 @@ REGISTER_CONFIG_DEFAULTS = {
         "gonkarouter": {
             "proxy": "",
         },
+        "agnes": {
+            "proxy": "",
+            "manual_captcha_timeout": 300,
+        },
         "openai": {
             "proxy": "",
             "enable_oauth": True,
@@ -92,6 +96,7 @@ PROVIDER_PROXY_ENV_MAPPING = {
     "TEMPMAIL_PROXY": ("mail_providers", "tempmail", "proxy"),
     "TEMPMAIL_HUB_PROXY": ("mail_providers", "tempmail_hub", "proxy"),
     "GONKAROUTER_PROXY": ("model_providers", "gonkarouter", "proxy"),
+    "AGNES_PROXY": ("model_providers", "agnes", "proxy"),
 }
 
 
@@ -173,6 +178,9 @@ def load_register_config(config_path, logger=None):
         model_cfg["api_append"] = parse_bool(model_cfg.get("api_append", True), True)
     elif model_name == "gonkarouter":
         model_cfg["proxy"] = str(model_cfg.get("proxy") or "").strip()
+    elif model_name == "agnes":
+        model_cfg["proxy"] = str(model_cfg.get("proxy") or "").strip()
+        model_cfg["manual_captcha_timeout"] = parse_int(model_cfg.get("manual_captcha_timeout", 300), 300)
     else:
         model_enable_oauth_raw = (
             config.get("model_enable_oauth") if config.get("model_enable_oauth") is not None else model_cfg.get("enable_oauth", True)

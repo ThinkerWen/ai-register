@@ -6,6 +6,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from glob import glob
 from typing import Optional
 
@@ -368,7 +369,7 @@ def _default_key_file(config):
     root = os.path.expanduser(str(config.get("token_dir") or "token_dir"))
     if not os.path.isabs(root):
         root = os.path.join(os.getcwd(), root)
-    return os.path.join(root, "gonkarouter", "api_keys.txt")
+    return os.path.join(root, "gonkarouter", f"api_keys_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt")
 
 
 def run_batch(total_accounts=None, max_workers=None, proxy=None):

@@ -4,24 +4,34 @@
 
 <h1 align="center">ai-register</h1>
 
-<p align="center">OpenAI / Grok / GonkaRouter batch registration · Email verification · Token storage and uploads</p>
+<p align="center">ChatGPT / Grok / GonkaRouter / Agnes batch registration · Email verification · Token storage and uploads</p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white" alt="Python 3.9+" />
   <img src="https://img.shields.io/badge/Config-YAML-0F766E" alt="YAML configuration" />
+  <img src="https://img.shields.io/badge/Platforms-4-8B5CF6" alt="4 platforms" />
   <img src="https://img.shields.io/badge/Mail_Providers-3-6366F1" alt="3 mail providers" />
 </p>
 
 <p align="center"><a href="README.md">简体中文</a> · <strong>English</strong></p>
 
 <p align="center">
-  <a href="#local-setup">Local setup</a> · <a href="#docker">Docker</a> ·
+  <a href="#supported-platforms">Supported platforms</a> · <a href="#local-setup">Local setup</a> · <a href="#docker">Docker</a> ·
   <a href="#mail-providers">Mail providers</a> · <a href="#configuration">Configuration</a>
 </p>
 
+## Supported platforms
+
+| Platform | Website | Upload target |
+| --- | --- | --- |
+| OpenAI | [chatgpt.com](https://chatgpt.com/) | [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) |
+| Grok | [grok.com](https://grok.com/) | [Grok2API](https://github.com/chenyme/grok2api) |
+| GonkaRouter | [gonkarouter.io](https://gonkarouter.io/) | [Magpie](https://github.com/yetone/magpie) |
+| Agnes | [platform.agnes-ai.com](https://platform.agnes-ai.com/) | [Magpie](https://github.com/yetone/magpie) |
+
 ## Local setup
 
-Requires Python 3.9+ and uv. Grok and GonkaRouter also need Chrome / Chromium, plus Xvfb on Linux without a desktop.
+Requires Python 3.9+ and uv. Grok, GonkaRouter, and Agnes also need Chrome / Chromium, plus Xvfb on Linux without a desktop.
 
 ```bash
 git clone https://github.com/ThinkerWen/ai-register.git
@@ -108,15 +118,18 @@ See [config.example.yaml](config.example.yaml) for all settings and credential f
 
 | Setting | Purpose |
 | --- | --- |
-| `model_provider` | `openai` / `grok` / `gonkarouter` |
+| `model_provider` | `openai` / `grok` / `gonkarouter` / `agnes` |
 | `mail_provider` | Select a mail provider from the table above |
 | `total_accounts` / `concurrency` | Batch size / concurrent workers |
 | `token_dir` | Local output directory; supports `~` |
 | `model_providers.openai.*` | OpenAI OAuth and proxy settings |
+| `model_providers.agnes.*` | Agnes browser proxy and manual captcha wait time |
 | `mail_providers.<name>.*` | Mail credentials and proxies |
 | `cpa.*` / `g2a.*` | Optional uploads to [CPA](https://github.com/router-for-me/CLIProxyAPI) / [Grok2API](https://github.com/chenyme/grok2api) |
-| `magpie.*` | Optional GonkaRouter key uploads to Magpie |
+| `magpie.*` | Optional GonkaRouter / Agnes key uploads to Magpie |
 
-GonkaRouter API keys are appended to `token_dir/gonkarouter/api_keys.txt`, one per line. Turnstile may not issue a token over a direct connection; configure a working proxy with `model_providers.gonkarouter.proxy`.
+GonkaRouter API keys are appended to `token_dir/gonkarouter/api_keys_YYYYMMDDHHMMSS.txt`, one per line; each batch creates a new file. Turnstile may not issue a token over a direct connection; configure a working proxy with `model_providers.gonkarouter.proxy`.
+
+Agnes registration opens the browser and waits for the Tencent click captcha to be completed manually. API keys are appended to `token_dir/agnes/api_keys_YYYYMMDDHHMMSS.txt`, one per line, with a new file for each batch.
 
 When `magpie.enable` is `true` and `magpie.api_url`, `magpie.magpie_auth_token`, `magpie.id`, and `magpie.name` are set, each saved key is also uploaded to Magpie. Upload failures do not affect local storage. Set `magpie_auth_token` to the `magpie_web_3430` cookie value only.
