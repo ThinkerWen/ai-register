@@ -63,6 +63,8 @@ def create_model_provider(config):
         return provider_cls(
             proxy=provider_cfg.get("proxy"),
             manual_captcha_timeout=provider_cfg.get("manual_captcha_timeout", 300),
+            captcha_method=provider_cfg.get("captcha_method", "manual"),
+            captcha_key=provider_cfg.get("2captcha_key", ""),
         )
 
     raise ModelProviderError(f"provider 初始化未实现: {provider_name}")

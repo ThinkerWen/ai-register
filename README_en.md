@@ -123,13 +123,9 @@ See [config.example.yaml](config.example.yaml) for all settings and credential f
 | `total_accounts` / `concurrency` | Batch size / concurrent workers |
 | `token_dir` | Local output directory; supports `~` |
 | `model_providers.openai.*` | OpenAI OAuth and proxy settings |
-| `model_providers.agnes.*` | Agnes browser proxy and manual captcha wait time |
+| `model_providers.agnes.*` | Agnes browser proxy, captcha method (`manual` / `2captcha`), 2captcha key, and manual captcha wait time |
 | `mail_providers.<name>.*` | Mail credentials and proxies |
 | `cpa.*` / `g2a.*` | Optional uploads to [CPA](https://github.com/router-for-me/CLIProxyAPI) / [Grok2API](https://github.com/chenyme/grok2api) |
 | `magpie.*` | Optional GonkaRouter / Agnes key uploads to Magpie |
-
-GonkaRouter API keys are appended to `token_dir/gonkarouter/api_keys_YYYYMMDDHHMMSS.txt`, one per line; each batch creates a new file. Turnstile may not issue a token over a direct connection; configure a working proxy with `model_providers.gonkarouter.proxy`.
-
-Agnes registration opens the browser and waits for the Tencent click captcha to be completed manually. API keys are appended to `token_dir/agnes/api_keys_YYYYMMDDHHMMSS.txt`, one per line, with a new file for each batch.
 
 When `magpie.enable` is `true` and `magpie.api_url`, `magpie.magpie_auth_token`, `magpie.id`, and `magpie.name` are set, each saved key is also uploaded to Magpie. Upload failures do not affect local storage. Set `magpie_auth_token` to the `magpie_web_3430` cookie value only.

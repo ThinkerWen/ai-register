@@ -20,6 +20,7 @@ from util import config as config_utils
 from util import get_logger, setup_logger
 from util import magpie as magpie_utils
 from util import mail as mail_utils
+from util import twocaptcha as twocaptcha_utils
 from util.browser_proxy import BrowserProxy
 
 setup_logger()
@@ -29,6 +30,10 @@ LOGIN_URL = "https://platform.agnes-ai.com/login"
 API_KEYS_URL = "https://platform.agnes-ai.com/settings/apiKeys"
 API_BASE = "https://platform-backend.agnes-ai.com"
 _file_lock = threading.Lock()
+CAPTCHA_METHOD_MANUAL = "manual"
+CAPTCHA_METHOD_2CAPTCHA = "2captcha"
+_CAPTCHA_METHODS = {CAPTCHA_METHOD_MANUAL, CAPTCHA_METHOD_2CAPTCHA}
+_SEND_CODE_TIMEOUT = 60
 _INVALID_EMAIL_DOMAIN_MARKERS = (
     "this email domain looks invalid or abusive",
     "email domain looks invalid",
@@ -39,12 +44,21 @@ _INVALID_EMAIL_DOMAIN_MARKERS = (
 class AgnesModelProvider(ModelProvider):
     name = "agnes"
 
-    def __init__(self, proxy: str = "", manual_captcha_timeout: int = 300):
+    def __init__(
+        self,
+        proxy: str = "",
+        manual_captcha_timeout: int = 300,
+        captcha_method: str = CAPTCHA_METHOD_MANUAL,
+        captcha_key: str = "",
+    ):
         self.proxy = str(proxy or "").strip()
         try:
             self.manual_captcha_timeout = int(manual_captcha_timeout)
         except (TypeError, ValueError):
             self.manual_captcha_timeout = 300
+        self.captcha_method = _normalize_captcha_method(captcha_method)
+        self.captcha_key = str(captcha_key or "").strip()
+        _validate_captcha_settings(self.captcha_method, self.captcha_key)
 
     def oauth_enabled(self) -> bool:
         return False
@@ -71,9 +85,32 @@ class AgnesModelProvider(ModelProvider):
         provider_cfg = (config.get("model_providers") or {}).get("agnes") or {}
         resolved_proxy = str(proxy if proxy is not None else self.proxy).strip()
         timeout = int(provider_cfg.get("manual_captcha_timeout") or self.manual_captcha_timeout)
+        captcha_method = _normalize_captcha_method(provider_cfg.get("captcha_method") or self.captcha_method)
+        captcha_key = str(provider_cfg.get("2captcha_key") or self.captcha_key).strip()
+        _validate_captcha_settings(captcha_method, captcha_key)
         total = int(total_accounts if total_accounts is not None else config.get("total_accounts") or 1)
         workers = int(max_workers if max_workers is not None else config.get("concurrency") or 1)
-        return run_batch(total_accounts=total, max_workers=workers, proxy=resolved_proxy, manual_captcha_timeout=timeout)
+        return run_batch(
+            total_accounts=total,
+            max_workers=workers,
+            proxy=resolved_proxy,
+            manual_captcha_timeout=timeout,
+            captcha_method=captcha_method,
+            captcha_key=captcha_key,
+        )
+
+
+def _normalize_captcha_method(value) -> str:
+    method = str(value or "").strip().lower()
+    if method not in _CAPTCHA_METHODS:
+        options = " / ".join(sorted(_CAPTCHA_METHODS))
+        raise RuntimeError(f"不支持的 Agnes 验证码方式: {value}（可选: {options}）")
+    return method
+
+
+def _validate_captcha_settings(captcha_method: str, captcha_key: str):
+    if captcha_method == CAPTCHA_METHOD_2CAPTCHA and not str(captcha_key or "").strip():
+        raise RuntimeError("Agnes 选择 2captcha 验证方式时需配置 model_providers.agnes.2captcha_key")
 
 
 def _pick_local_debug_port() -> int:
@@ -173,6 +210,84 @@ return true;
             return
         time.sleep(0.25)
     raise RuntimeError("未找到验证码发送按钮")
+
+
+def _install_captcha_hook(page):
+    """拦截腾讯验证码弹窗，保存 appId 和回调，供 2captcha 注入结果。"""
+    page.run_js(
+        r"""
+if (window.__agnesCaptchaHookInstalled) return true;
+window.__agnesCaptchaHookInstalled = true;
+window.__agnesCaptchaState = { request: null, callback: null };
+const WrappedTencentCaptcha = function (appId, callback, options) {
+    window.__agnesCaptchaState.request = {
+        appId: String(appId || ''),
+        pageUrl: String(location.href || ''),
+        captchaScript: (() => {
+            const scripts = Array.from(document.querySelectorAll('script[src*="Captcha"]'));
+            return scripts.length ? String(scripts[scripts.length - 1].src || '') : '';
+        })(),
+        options: options || {}
+    };
+    window.__agnesCaptchaState.callback = typeof callback === 'function' ? callback : null;
+    this.show = function () {};
+    this.hide = function () {};
+    this.destroy = function () {};
+};
+Object.defineProperty(window, 'TencentCaptcha', {
+    configurable: true,
+    get: function () { return WrappedTencentCaptcha; },
+    set: function (value) { window.__agnesRealTencentCaptcha = value; }
+});
+return true;
+        """
+    )
+
+
+def _wait_for_captcha_request(page, timeout=60):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            state = page.run_js("return window.__agnesCaptchaState || null")
+        except PageDisconnectedError:
+            time.sleep(0.5)
+            continue
+        request = (state or {}).get("request")
+        if isinstance(request, dict) and request.get("appId"):
+            return request
+        time.sleep(0.25)
+    raise RuntimeError("未捕获 Agnes 腾讯验证码，无法使用 2captcha 自动验证")
+
+
+def _solve_captcha_with_2captcha(page, captcha_key, timeout=180, log=None):
+    request = _wait_for_captcha_request(page)
+    app_id = str(request.get("appId") or twocaptcha_utils.DEFAULT_TENCENT_APP_ID).strip()
+    page_url = str(request.get("pageUrl") or page.url).strip()
+    result = twocaptcha_utils.solve_tencent_captcha(
+        api_key=captcha_key,
+        app_id=app_id,
+        page_url=page_url,
+        captcha_script=str(request.get("captchaScript") or ""),
+        timeout=timeout,
+        logger=log,
+    )
+    injected = page.run_js(
+        r"""
+const state = window.__agnesCaptchaState;
+if (!state || typeof state.callback !== 'function') return false;
+state.callback({
+    ret: arguments[0],
+    ticket: arguments[1],
+    randstr: arguments[2]
+});
+return true;
+        """,
+        result.get("ret", 0),
+        result.get("ticket"),
+        result.get("randstr"),
+    )
+    if not injected:
+        raise RuntimeError("Agnes 腾讯验证码回调不可用，2captcha 验证结果注入失败")
 
 
 def _get_send_code_state(page):
@@ -340,7 +455,14 @@ def _default_key_file(config):
     return os.path.join(root, "agnes", f"api_keys_{datetime.now().strftime('%Y%m%d%H%M%S')}.txt")
 
 
-def _register_one(index, output_path, proxy, manual_captcha_timeout=300):
+def _register_one(
+    index,
+    output_path,
+    proxy,
+    manual_captcha_timeout=300,
+    captcha_method=CAPTCHA_METHOD_MANUAL,
+    captcha_key="",
+):
     config = config_utils.get_register_config(logger=logger)
     logger.info("task={} 获取临时邮箱", index)
     mail_provider = mail_utils.create_mail_provider(config, user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
@@ -357,9 +479,22 @@ def _register_one(index, output_path, proxy, manual_captcha_timeout=300):
         time.sleep(2)
         _click_any_by_text(page, ["注册", "Sign up"])
         _fill_input(page, "css:#email", email)
-        logger.info("task={} 点击发送验证码，请在浏览器中手动完成腾讯点选验证码", index)
+        if captcha_method == CAPTCHA_METHOD_2CAPTCHA:
+            logger.info("task={} 点击发送验证码，使用 2captcha 自动完成腾讯点选验证码", index)
+            _install_captcha_hook(page)
+        else:
+            logger.info("task={} 点击发送验证码，请在浏览器中手动完成腾讯点选验证码", index)
         _click_send_code_icon(page)
-        _wait_for_send_code_result(page, timeout=manual_captcha_timeout)
+        if captcha_method == CAPTCHA_METHOD_2CAPTCHA:
+            _solve_captcha_with_2captcha(
+                page,
+                captcha_key,
+                log=lambda message: logger.info("task={} {}", index, message),
+            )
+            logger.info("task={} 2captcha 验证通过，等待验证码发送结果", index)
+            _wait_for_send_code_result(page, timeout=_SEND_CODE_TIMEOUT)
+        else:
+            _wait_for_send_code_result(page, timeout=manual_captcha_timeout)
         logger.info("task={} 验证码发送成功，等待邮件", index)
         code = mail_utils.wait_for_verification_email(
             mail_token=mail_token,
@@ -399,8 +534,17 @@ def _register_one(index, output_path, proxy, manual_captcha_timeout=300):
         session.close()
 
 
-def run_batch(total_accounts=None, max_workers=None, proxy=None, manual_captcha_timeout=300):
+def run_batch(
+    total_accounts=None,
+    max_workers=None,
+    proxy=None,
+    manual_captcha_timeout=300,
+    captcha_method=CAPTCHA_METHOD_MANUAL,
+    captcha_key="",
+):
     config = config_utils.get_register_config(logger=logger)
+    captcha_method = _normalize_captcha_method(captcha_method)
+    _validate_captcha_settings(captcha_method, captcha_key)
     mail_ok, mail_err = mail_utils.validate_mail_provider_config(config)
     if not mail_ok:
         raise RuntimeError(f"邮箱 provider 配置无效: {mail_err}")
@@ -410,12 +554,27 @@ def run_batch(total_accounts=None, max_workers=None, proxy=None, manual_captcha_
     total = int(total_accounts if total_accounts is not None else config.get("total_accounts") or 1)
     workers = max(1, min(int(max_workers if max_workers is not None else config.get("concurrency") or 1), max(1, total)))
     output_path = _default_key_file(config)
-    logger.info("Agnes 批量注册开始 | total={} | workers={} | output={}", total, workers, output_path)
+    logger.info(
+        "Agnes 批量注册开始 | total={} | workers={} | captcha={} | output={}",
+        total,
+        workers,
+        captcha_method,
+        output_path,
+    )
     logger.info("Magpie 上传: {}", "启用" if magpie_state == "ok" else "未启用")
     results = []
     with ThreadPoolExecutor(max_workers=workers) as executor:
         futures = {
-            executor.submit(_register_one, index, output_path, proxy, manual_captcha_timeout): index for index in range(1, total + 1)
+            executor.submit(
+                _register_one,
+                index,
+                output_path,
+                proxy,
+                manual_captcha_timeout,
+                captcha_method,
+                captcha_key,
+            ): index
+            for index in range(1, total + 1)
         }
         for future in as_completed(futures):
             try:

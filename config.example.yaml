@@ -14,7 +14,9 @@ model_providers:
     proxy: ""  # GonkaRouter 浏览器代理；Turnstile 通常需要可用代理
   agnes:
     proxy: ""  # Agnes 浏览器代理；留空直连
-    manual_captcha_timeout: 300  # 等待人工完成腾讯点选验证码的秒数
+    captcha_method: "manual"  # 验证方式：manual（人工）/ 2captcha（自动）
+    manual_captcha_timeout: 300  # manual：等待人工完成腾讯点选验证码的秒数
+    2captcha_key: ""  # captcha_method 为 2captcha 时必填
   openai:
     proxy: ""  # OpenAI 注册和 OAuth 代理，留空直连
     # 一般不修改

@@ -16,7 +16,9 @@ REGISTER_CONFIG_DEFAULTS = {
         },
         "agnes": {
             "proxy": "",
+            "captcha_method": "manual",
             "manual_captcha_timeout": 300,
+            "2captcha_key": "",
         },
         "openai": {
             "proxy": "",
@@ -71,6 +73,8 @@ REGISTER_ENV_KEY_MAPPING = {
     "model_oauth_issuer": "MODEL_OAUTH_ISSUER",
     "model_oauth_client_id": "MODEL_OAUTH_CLIENT_ID",
     "model_oauth_redirect_uri": "MODEL_OAUTH_REDIRECT_URI",
+    "agnes_captcha_method": "AGNES_CAPTCHA_METHOD",
+    "agnes_2captcha_key": "AGNES_2CAPTCHA_KEY",
     "token_dir": "TOKEN_DIR",
     "cpa_enable": "CPA_ENABLE",
     "cpa_api_url": "CPA_API_URL",
@@ -180,7 +184,11 @@ def load_register_config(config_path, logger=None):
         model_cfg["proxy"] = str(model_cfg.get("proxy") or "").strip()
     elif model_name == "agnes":
         model_cfg["proxy"] = str(model_cfg.get("proxy") or "").strip()
+        captcha_method = config.get("agnes_captcha_method") or model_cfg.get("captcha_method") or "manual"
+        model_cfg["captcha_method"] = str(captcha_method).strip().lower()
         model_cfg["manual_captcha_timeout"] = parse_int(model_cfg.get("manual_captcha_timeout", 300), 300)
+        captcha_key = config.get("agnes_2captcha_key") or model_cfg.get("2captcha_key") or ""
+        model_cfg["2captcha_key"] = str(captcha_key).strip()
     else:
         model_enable_oauth_raw = (
             config.get("model_enable_oauth") if config.get("model_enable_oauth") is not None else model_cfg.get("enable_oauth", True)

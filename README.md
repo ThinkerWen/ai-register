@@ -123,13 +123,9 @@ tail -f token_dir/register.log
 | `total_accounts` / `concurrency` | 任务总数 / 并发数 |
 | `token_dir` | 本地输出目录，支持 `~` |
 | `model_providers.openai.*` | OpenAI OAuth 和代理 |
-| `model_providers.agnes.*` | Agnes 浏览器代理和人工验证码等待时间 |
+| `model_providers.agnes.*` | Agnes 浏览器代理、验证方式（`manual` / `2captcha`）、2captcha Key 和人工验证码等待时间 |
 | `mail_providers.<名称>.*` | 邮箱凭据和代理 |
 | `cpa.*` / `g2a.*` | 可选上传到 [CPA](https://github.com/router-for-me/CLIProxyAPI) / [Grok2API](https://github.com/chenyme/grok2api) |
 | `magpie.*` | 可选上传 GonkaRouter / Agnes Key 到 Magpie |
-
-GonkaRouter 的 API Key 追加到 `token_dir/gonkarouter/api_keys_YYYYMMDDHHMMSS.txt`，一行一个，每次批量任务生成新文件。Turnstile 在直连环境可能无法生成 token，请通过 `model_providers.gonkarouter.proxy` 配置可用代理。
-
-Agnes 的注册会打开浏览器并等待人工完成腾讯点选验证码；API Key 追加到 `token_dir/agnes/api_keys_YYYYMMDDHHMMSS.txt`，一行一个，每次批量任务生成新文件。
 
 设置 `magpie.enable: true`，并填写 `magpie.api_url`、`magpie.magpie_auth_token`、`magpie.id` 和 `magpie.name` 后，Key 保存成功会同步上传到 Magpie；上传失败不会影响本地保存。`magpie_auth_token` 只填 `magpie_web_3430` 的 Cookie 值即可。
